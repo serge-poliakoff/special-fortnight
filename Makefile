@@ -4,18 +4,19 @@ CFLAGS := -Wall -std=c17
 PARS=parser
 LEX=lexer
 INC=./include
+OBJ=./obj
 
-tpcas: bin/$(PARS).tab.o bin/lex.yy.o bin/tree.o
+bin/tpcas: $(OBJ)/$(PARS).tab.o $(OBJ)/lex.yy.o $(OBJ)/tree.o
 	$(CC) $(CFLAGS) $^ -o $@ -lfl
 
 #objects
 
-bin/%.o: src/%.c
+$(OBJ)/%.o: src/%.c
 	$(CC) $(CFLAGS) -I$(INC) -c $< -o $@
 
-bin/lex.yy.o: src/lex.yy.c $(INC)/$(PARS).tab.h
+$(OBJ)/lex.yy.o: src/lex.yy.c $(INC)/$(PARS).tab.h
 
-bin/$(PARS).tab.o: src/$(PARS).tab.c $(INC)/tree.h
+$(OBJ)/$(PARS).tab.o: src/$(PARS).tab.c $(INC)/tree.h
 
 #c scripts of lex and bison
 
