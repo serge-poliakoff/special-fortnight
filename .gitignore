@@ -1,0 +1,14 @@
+tests/
+bin/
+obj/
+
+#object files
+**.o
+
+#test files
+**.tpc
+
+#bison generated files
+**.tab.*
+
+**/lex.yy.c
