@@ -8,6 +8,7 @@ OBJ=./obj
 
 bin/tpcas: $(OBJ)/$(PARS).tab.o $(OBJ)/lex.yy.o $(OBJ)/tree.o
 	$(CC) $(CFLAGS) $^ -o $@ -lfl
+	./test.sh
 
 #objects
 
