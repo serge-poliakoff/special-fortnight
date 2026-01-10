@@ -6,7 +6,7 @@ extern int yylex();
 extern int yyparse();
 extern FILE* yyin;
 
-void yyerror(char* s);
+void yyerror(const char* s);
 Node* expr;
 
 %}
@@ -32,11 +32,15 @@ Node* expr;
 %token RETURN
 %token ELSE
 
+%token STRUCT
+
 %%
 Prog:  DeclVars DeclFoncts
     ;
 DeclVars:
        DeclVars TYPE Declarateurs ';'
+    |  STRUCT IDENT '{' DeclVars '}' ';'
+    |  STRUCT IDENT Declarateurs ';'
     |
     ;
 Declarateurs:
@@ -69,7 +73,7 @@ SuiteInstr:
     |
     ;
 Instr:
-       IDENT '=' Exp ';'
+       IdExpr '=' Exp ';'
     |  IF '(' Exp ')' Instr
     |  IF '(' Exp ')' Instr ELSE Instr
     |  WHILE '(' Exp ')' Instr
@@ -79,6 +83,9 @@ Instr:
     |  '{' SuiteInstr '}'
     |  ';'
     ;
+IdExpr:
+       IDENT
+    |  IDENT '.' IDENT
 Exp :  Exp OR TB
     |  TB
     ;
@@ -116,7 +123,7 @@ ListExp:
 %%
 
 extern int linenum;
-void yyerror(char* s){
+void yyerror(const char* s){
     fprintf(stderr, "Syntax error on line %d: %s\n", linenum, s);
 	//deleteTree(expr);
 	exit(1);

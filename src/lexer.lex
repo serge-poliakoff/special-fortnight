@@ -22,6 +22,7 @@ else                {return ELSE;}
 int                 {return TYPE;}
 char                {return TYPE;}
 
+struct              {return STRUCT;}
 
 [_a-zA-Z][_a-zA-Z0-9]* {return IDENT;}
 

@@ -22,7 +22,7 @@ $(OBJ)/$(PARS).tab.o: src/$(PARS).tab.c $(INC)/tree.h
 #c scripts of lex and bison
 
 src/$(PARS).tab.c include/$(PARS).tab.h: src/$(PARS).y
-	bison -d -o src/$(PARS).tab.c $<
+	bison -d -o src/$(PARS).tab.c $< -Wcounterexamples
 	mv ./src/$(PARS).tab.h ./include/
 
 src/lex.yy.c: src/$(LEX).lex
