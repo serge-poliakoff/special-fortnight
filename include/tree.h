@@ -1,7 +1,7 @@
 /* tree.h */
 
 #define FOREACH_TOKEN(TOKEN) \
-        TOKEN(character)   \
+        TOKEN(Character)   \
         TOKEN(Num)  \
         TOKEN(Ident)   \
         TOKEN(Type)  \
@@ -31,8 +31,8 @@
         TOKEN(Instr)  \
         TOKEN(IdExpr)  \
         TOKEN(Exp)  \
-        TOKEN(TB)  \
-        TOKEN(FB)  \
+        TOKEN(Tb)  \
+        TOKEN(Fb)  \
         TOKEN(M)  \
         TOKEN(E)  \
         TOKEN(T)  \

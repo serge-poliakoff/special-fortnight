@@ -149,50 +149,99 @@ ListTypVar:
         $$ = cur;
         }
     ;
-Corps: '{' DeclVars SuiteInstr '}'
+Corps: '{' DeclVars SuiteInstr '}' {
+        Node* cur = makeNode(Corps);
+        addChild(cur, $2); addChild(cur, $3);
+        $$ = cur;
+    }
     ;
 SuiteInstr:
-       SuiteInstr Instr
-    |
+       SuiteInstr Instr {addChild($1, $2);}
+    |   {$$ = makeNode(SuiteInstr);}
     ;
 Instr:
-       IdExpr '=' Exp ';'
+       IdExpr '=' Exp ';' {
+        Node* cur = makeNode(Instr);
+        addChild(cur, $1); addChild(cur, $3);
+        $$ = cur;
+       }
     |  IF '(' Exp ')' Instr
     |  IF '(' Exp ')' Instr ELSE Instr
     |  WHILE '(' Exp ')' Instr
     |  IDENT '(' Arguments  ')' ';'
-    |  RETURN Exp ';'
-    |  RETURN ';'
-    |  '{' SuiteInstr '}'
+    |  RETURN Exp ';' {
+        Node* cur = makeNode(Instr);
+        Node* ret = makeNode(Return);
+        addChild(cur, ret); addChild(cur, $2);
+        $$ = cur;
+       }
+    |  RETURN ';' {
+        Node* cur = makeNode(Instr);
+        Node* ret = makeNode(Return);
+        addChild(cur, ret);
+        $$ = cur;
+       }
+    |  '{' SuiteInstr '}' {
+        Node* cur = makeNode(Instr);
+        addChild(cur, $1);
+        $$ = cur;
+       }
     |  ';'
     ;
 IdExpr:
-       IDENT
-    |  IDENT '.' IDENT
-Exp :  Exp OR TB
-    |  TB
+       IDENT {
+        Node* cur = makeNode(IdExpr);
+        addChild(cur, makeNode(Ident));
+        $$ = cur;
+       }
+    |  IDENT '.' IDENT {
+        Node* cur = makeNode(IdExpr);
+        addChild(cur, makeNode(Ident)); addChild(cur, makeNode(Ident));
+        $$ = cur;
+       }
+Exp :  Exp OR TB {Node* oper = makeNode(Or);
+        addChild($1, oper); addChild($1, $3);
+        $$ = $1;}
+    |  TB   {
+        Node *cur = makeNode(Exp);
+        addChild(cur, $1);
+        $$ = cur;
+    }
     ;
-TB  :  TB AND FB
-    |  FB
+TB  :  TB AND FB {Node* oper = makeNode(And);
+        addChild($1, oper); addChild($1, $3);
+        $$ = $1;}
+    |  FB {Node* cur = makeNode(Tb); addChild(cur, $1); $$ = cur;}
     ;
-FB  :  FB EQ M
-    |  M
+FB  :  FB EQ M {Node* oper = makeNode(Eq);
+        addChild($1, oper); addChild($1, $3);
+        $$ = $1;}
+    |  M {Node* cur = makeNode(Fb); addChild(cur, $1); $$ = cur;}
     ;
-M   :  M ORDER E
-    |  E
+M   :  M ORDER E {Node* oper = makeNode(Order);
+        addChild($1, oper); addChild($1, $3);
+        $$ = $1;}
+    |  E {Node* cur = makeNode(M); addChild(cur, $1); $$ = cur;}
     ;
-E   :  E ADDSUB T
-    |  T
+E   :  E ADDSUB T {Node* oper = makeNode(Addsub);
+        addChild($1, oper); addChild($1, $3);
+        $$ = $1;}
+    |  T {Node* cur = makeNode(E); addChild(cur, $1); $$ = cur;}
     ;    
-T   :  T DIVSTAR F 
-    |  F
+T   :  T DIVSTAR F {Node* oper = makeNode(Divstar);
+        addChild($1, oper); addChild($1, $3);
+        $$ = $1;}
+    |  F {Node* cur = makeNode(T); addChild(cur, $1); $$ = cur;}
     ;
-F   :  ADDSUB F
+F   :  ADDSUB F {
+        Node* cur = makeNode(F);
+        addChild(cur, makeNode(Addsub)); addChild(cur, $2);
+        $$ = cur;}
     |  '!' F
     |  '(' Exp ')'
-    |  NUM
-    |  CHARACTER
-    |  IdExpr
+    |  NUM {Node* cur = makeNode(F); addChild(cur, makeNode(Num)); $$ = cur;}
+    |  CHARACTER {Node* cur = makeNode(F); addChild(cur, makeNode(Character)); $$ = cur;}
+    |  IdExpr {Node* cur = makeNode(F); addChild(cur, $1); $$ = cur;}
     |  IDENT '(' Arguments  ')'
     ;
 Arguments:
