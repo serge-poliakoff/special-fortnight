@@ -44,15 +44,28 @@ Prog:  DeclVars DeclFoncts {
     ;
 DeclVars:
        DeclVars TYPE Declarateurs ';' {Node *type = makeNode(Type);
-            addChild($1, type); addChild(type, $3); $$ = $1;}
-    |  DeclVars STRUCT IDENT '{' DeclStructVars '}' ';'
-    |  DeclVars STRUCT IDENT Declarateurs ';'
+        addChild($1, type); addChild(type, $3); $$ = $1;}
+    |  DeclVars STRUCT IDENT '{' DeclStructVars '}' ';' {
+        Node *type = makeNode(Struct); Node *typeName = makeNode(Ident);
+        addChild(type, typeName);
+        addChild(typeName, $5);
+        addChild($1, type);
+        $$ = $1;
+    }
+    |  DeclVars STRUCT IDENT Declarateurs ';' {
+        Node *type = makeNode(Struct); Node *typeName = makeNode(Ident);
+        addChild($1, type); addChild(type, typeName); addChild(typeName, $4);
+        $$ = $1;}
     |  {Node* cur = makeNode(DeclVars); $$ = cur;}
     ;
 DeclStructVars:
-       DeclStructVars TYPE Declarateurs ';'
-    |  DeclStructVars STRUCT IDENT Declarateurs ';'
-    |
+       DeclStructVars TYPE Declarateurs ';' {Node *type = makeNode(Type);
+        addChild($1, type); addChild(type, $3); $$ = $1;}
+    |  DeclStructVars STRUCT IDENT Declarateurs ';' {
+        Node *type = makeNode(Struct); Node *typeName = makeNode(Ident);
+        addChild($1, type); addChild(type, typeName); addChild(typeName, $4);
+        $$ = $1;}
+    |  {Node* cur = makeNode(DeclStructVars); $$ = cur;}
     ;
 Declarateurs:
        Declarateurs ',' IDENT {Node* id = makeNode(Ident); addSibling($1, id);}
@@ -206,8 +219,13 @@ int main(int argc, char **argv) {
 		yyparse();
 	} while(!feof(yyin));
 
-    if(argc < 1 || strcmp(argv[1], "--dry-run") != 0)
+    if(argc > 1){
+        if (strcmp(argv[1], "--dry-run") != 0){
+            printTree(prog);
+        }
+    }else{
 	    printTree(prog);
+    }
 	deleteTree(prog);
 	printf("Parsed successfully\n");
 	return 0;
