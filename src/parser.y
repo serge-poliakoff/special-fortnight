@@ -168,7 +168,12 @@ Instr:
     |  IF '(' Exp ')' Instr
     |  IF '(' Exp ')' Instr ELSE Instr
     |  WHILE '(' Exp ')' Instr
-    |  IDENT '(' Arguments  ')' ';'
+    |  IDENT '(' Arguments  ')' ';' {
+        Node* cur = makeNode(Instr);
+        Node* func = makeNode(Ident);
+        addChild(cur, func); addChild(cur, $3);
+        $$ = cur;
+    }
     |  RETURN Exp ';' {
         Node* cur = makeNode(Instr);
         Node* ret = makeNode(Return);
@@ -238,19 +243,31 @@ F   :  ADDSUB F {
         addChild(cur, makeNode(Addsub)); addChild(cur, $2);
         $$ = cur;}
     |  '!' F
-    |  '(' Exp ')'
+    |  '(' Exp ')' {Node* cur = makeNode(F); addChild(cur, $2); $$ = cur;}
     |  NUM {Node* cur = makeNode(F); addChild(cur, makeNode(Num)); $$ = cur;}
     |  CHARACTER {Node* cur = makeNode(F); addChild(cur, makeNode(Character)); $$ = cur;}
     |  IdExpr {Node* cur = makeNode(F); addChild(cur, $1); $$ = cur;}
-    |  IDENT '(' Arguments  ')'
+    |  IDENT '(' Arguments  ')' {Node* cur = makeNode(F);
+        addChild(cur, makeNode(Ident)); addChild(cur, $3); $$ = cur;}
     ;
 Arguments:
-       ListExp
-    |
+       ListExp {
+        Node *cur = makeNode(Arguments);
+        addChild(cur, $1);
+        $$ = cur;
+    }
+    | {$$ = makeNode(Arguments);}
     ;
 ListExp:
-       ListExp ',' Exp
-    |  Exp
+       ListExp ',' Exp {
+        addChild($1, $3);
+        $$ = $1;
+    }
+    |  Exp {
+        Node *cur = makeNode(ListExp);
+        addChild(cur, $1);
+        $$ = cur;
+    }
     ;
 %%
 
