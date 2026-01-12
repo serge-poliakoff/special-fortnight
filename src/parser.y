@@ -165,9 +165,26 @@ Instr:
         addChild(cur, $1); addChild(cur, $3);
         $$ = cur;
        }
-    |  IF '(' Exp ')' Instr
-    |  IF '(' Exp ')' Instr ELSE Instr
-    |  WHILE '(' Exp ')' Instr
+    |  IF '(' Exp ')' Instr {
+        Node* cur = makeNode(Instr);
+        Node* ifT = makeNode(If);
+        addChild(cur, ifT); addChild(cur, $3); addChild(cur, $5);
+        $$ = cur;
+    }
+    |  IF '(' Exp ')' Instr ELSE Instr {
+        Node* cur = makeNode(Instr);
+        Node* ifT = makeNode(If);
+        Node* elseT = makeNode(Else);
+        addChild(cur, ifT); addChild(cur, $3); addChild(cur, $5);
+        addChild(cur, elseT); addChild(cur, $7);
+        $$ = cur;
+    }
+    |  WHILE '(' Exp ')' Instr {
+        Node* cur = makeNode(Instr);
+        Node* whileT = makeNode(While);
+        addChild(cur, whileT); addChild(cur, $3); addChild(cur, $5);
+        $$ = cur;
+    }
     |  IDENT '(' Arguments  ')' ';' {
         Node* cur = makeNode(Instr);
         Node* func = makeNode(Ident);
@@ -188,7 +205,7 @@ Instr:
        }
     |  '{' SuiteInstr '}' {
         Node* cur = makeNode(Instr);
-        addChild(cur, $1);
+        addChild(cur, $2);
         $$ = cur;
        }
     |  ';'
@@ -242,7 +259,7 @@ F   :  ADDSUB F {
         Node* cur = makeNode(F);
         addChild(cur, makeNode(Addsub)); addChild(cur, $2);
         $$ = cur;}
-    |  '!' F
+    |  '!' F {Node* cur = makeNode(F); addChild(cur, $2); $$ = cur;}
     |  '(' Exp ')' {Node* cur = makeNode(F); addChild(cur, $2); $$ = cur;}
     |  NUM {Node* cur = makeNode(F); addChild(cur, makeNode(Num)); $$ = cur;}
     |  CHARACTER {Node* cur = makeNode(F); addChild(cur, makeNode(Character)); $$ = cur;}
