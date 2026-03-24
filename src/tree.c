@@ -15,6 +15,21 @@ Node *makeNode(label_t label) {
     printf("Run out of memory\n");
     exit(1);
   }
+  tree_label l;
+  l.type = KEYWORD;
+  l.value.label = label;
+  node->label = l;
+  node-> firstChild = node->nextSibling = NULL;
+  node->lineno=linenum;
+  return node;
+}
+
+Node *makeNodeFull(tree_label label) {
+  Node *node = malloc(sizeof(Node));
+  if (!node) {
+    printf("Run out of memory\n");
+    exit(1);
+  }
   node->label = label;
   node-> firstChild = node->nextSibling = NULL;
   node->lineno=linenum;
@@ -45,11 +60,22 @@ void deleteTree(Node *node) {
   if (node->nextSibling) {
     deleteTree(node->nextSibling);
   }
+  if (node->label.type == 3){ // id
+    //printf("Free %s", node->label.value.id);
+    free(node->label.value.id);
+  }
   free(node);
 }
 
 void printNode(Node *node){
-  printf("%s", StringFromLabel[node->label]);
+  if (node->label.type == KEYWORD)
+    printf("%s", StringFromLabel[node->label.value.label]);
+  else if (node->label.type == INT)
+    printf("%d", node->label.value.number);
+  else if (node->label.type == CHAR)
+    printf("\'%c\'", node->label.value.character);
+  else // (node->label.type == ID)
+    printf("%s", node->label.value.id);
 }
 
 void printTree(Node *node) {
@@ -61,7 +87,8 @@ void printTree(Node *node) {
   if (depth > 0) { // 2514 = L form; 2500 = horizontal line; 251c = vertical line and right horiz 
     printf(rightmost[depth] ? "\u2514\u2500\u2500 " : "\u251c\u2500\u2500 ");
   }
-  printf("%s", StringFromLabel[node->label]);
+  //printf("%s", StringFromLabel[node->label]);
+  printNode(node);
   printf("\n");
   depth++;
   for (Node *child = node->firstChild; child != NULL; child = child->nextSibling) {

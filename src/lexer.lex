@@ -1,11 +1,19 @@
 %{
 #include <stdio.h>
+
 #include <tree.h>
 #include "parser.tab.h"      //tokens of syntax analyser
 int linenum = 1;
 int fileno(FILE *stream);
 
 /*struct {id} {return STRUCT}*/
+
+char* strdup(const char* source){
+	char *res = (char*)malloc(strlen(source) + 1);
+	strcpy(res, source);
+	res[strlen(source)] = '\0';
+	return res;
+}
 
 %}
 
@@ -19,15 +27,44 @@ if                  {return IF;}
 void                {return VOID;}
 else                {return ELSE;}
 
-int                 {return TYPE;}
-char                {return TYPE;}
 
-struct              {return STRUCT;}
+int                 { tree_label int_label;
+						int_label.type = ID; int_label.value.id = strdup("int");
+						yylval.value = int_label; return TYPE; }
+char                { tree_label int_label;
+						int_label.type = ID;
+						int_label.value.id = strdup("char");
+						yylval.value = int_label; return TYPE; }
 
-[_a-zA-Z][_a-zA-Z0-9]* {return IDENT;}
+struct              {
+						//yylval.value.type = KEYWORD; yylval.value.value.label = Struct;
+						return STRUCT; }
 
-[0-9]+              {return NUM;}
-\'[^']+\'           {return CHARACTER;}
+[_a-zA-Z][_a-zA-Z0-9]* {
+	
+	yylval.value.type = ID;
+	//printf("%s %d", yytext, strlen(yytext));
+	//yylval.value.value.id = (char *)malloc(strlen(yytext) + 1);
+	//yylval.value.value.id[strlen(yytext)] = '\0';
+	//printf("%s %d %s", yytext, strlen(yytext), yylval.value.value.id);
+	//assert(yylval.value.value.id != NULL);
+	//strcpy(yylval.value.value.id, yytext);
+	yylval.value.value.id = strdup(yytext);
+	return IDENT;
+}
+
+[0-9]+ {
+	//yylval.type = NUM;
+	yylval.value.type = INT;
+	yylval.value.value.number = atoi(yytext);
+	return NUM;
+}
+\'[^']+\' {
+	//yylval.type = CHARACTER;
+	yylval.value.type = CHAR;
+	yylval.value.value.character = yytext[1];
+	return CHARACTER;
+}
 
 "=="|"!="           {return EQ;}
 ">"|">="|"<"|"<="   {return ORDER;}

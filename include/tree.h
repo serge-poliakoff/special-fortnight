@@ -51,13 +51,26 @@ typedef enum {
   /* To avoid listing them twice, see https://stackoverflow.com/a/10966395 */
 } label_t;
 
+typedef enum { KEYWORD, INT, CHAR, ID } tree_label_type;
+
+typedef struct  {
+  tree_label_type type;
+  union {
+    label_t label;
+    int number;
+    char character;
+    char* id;
+  } value;
+} tree_label;
+
 typedef struct Node {
-  label_t label;
+  tree_label label;
   struct Node *firstChild, *nextSibling;
   int lineno;
 } Node;
 
 Node *makeNode(label_t label);
+Node *makeNodeFull(tree_label label);
 void addSibling(Node *node, Node *sibling);
 void addChild(Node *parent, Node *child);
 void deleteTree(Node*node);
