@@ -10,6 +10,28 @@ extern FILE* yyin;
 void yyerror(const char* s);
 Node* prog;
 
+//TODO:
+// - remove DeclStructVars, ListTypVar and ListExp from the tree
+// - add concrete operations to ORDER, DIVSTAR and ADDSUB
+//      (maybe with different tree_label.type like ops)
+
+//the func below is not to be used - for now stick to IDENT names for structure types - 
+// anyway because of lexer you can't define "struct int" or smth like this,
+// so it is allover much easier to refer struct types just by their name
+// struct keyword would be so present just in the declaration of the type
+
+// modifies IDENT in "STRUCT IDENT" pattern to be "struct IDENT"
+// in a structure typed variable declaration
+void create_struct_type_name(tree_label *identity){
+    char *struct_type_id = identity->value.id;
+    char *full_struct_type_name = 
+        (char *)malloc(8 + strlen(struct_type_id)); // 'struct ' + \0
+    strcat(strcat(full_struct_type_name, "struct "), struct_type_id);
+    full_struct_type_name[7 + strlen(struct_type_id)] = '\0';
+    identity->value.id = full_struct_type_name;
+    free(struct_type_id);
+}
+
 %}
 
 %define parse.error verbose
@@ -51,27 +73,32 @@ Prog:  DeclVars DeclFoncts {
     }
     ;
 DeclVars:
-       DeclVars TYPE Declarateurs ';' {Node *type = makeNode(Type);
+       DeclVars TYPE Declarateurs ';' {Node *type = makeNodeFull($2);
         addChild($1, type); addChild(type, $3); $$ = $1;}
     |  DeclVars STRUCT IDENT '{' DeclStructVars '}' ';' {
-        Node *type = makeNode(Struct); Node *typeName = makeNode(Ident);
+        Node *type = makeNode(Struct); Node *typeName = makeNodeFull($3);
         addChild(type, typeName);
         addChild(typeName, $5);
         addChild($1, type);
         $$ = $1;
     }
     |  DeclVars STRUCT IDENT Declarateurs ';' {
-        Node *type = makeNode(Struct); Node *typeName = makeNode(Ident);
-        addChild($1, type); addChild(type, typeName); addChild(typeName, $4);
+        // construct new type name in form "struct IDENT"
+        
+
+        //Node *type = makeNode(Struct); Node *typeName = makeNode(Ident);
+        //addChild($1, type); addChild(type, typeName); addChild(typeName, $4);
+        Node *type = makeNodeFull($3); addChild($1, type);
+        addChild(type, $4);
         $$ = $1;}
     |  {Node* cur = makeNode(DeclVars); $$ = cur;}
     ;
 DeclStructVars:
-       DeclStructVars TYPE Declarateurs ';' {Node *type = makeNode(Type);
+       DeclStructVars TYPE Declarateurs ';' {Node *type = makeNodeFull($2);
         addChild($1, type); addChild(type, $3); $$ = $1;}
     |  DeclStructVars STRUCT IDENT Declarateurs ';' {
-        Node *type = makeNode(Struct); Node *typeName = makeNode(Ident);
-        addChild($1, type); addChild(type, typeName); addChild(typeName, $4);
+        /*Node *type = makeNode(Struct);*/ Node *typeName = makeNodeFull($3);
+        addChild($1, typeName); addChild(typeName, $4);
         $$ = $1;}
     |  {Node* cur = makeNode(DeclStructVars); $$ = cur;}
     ;
@@ -109,10 +136,10 @@ EnTeteFonct:
        }
     |  STRUCT IDENT IDENT '(' Parametres ')'{
         Node* cur = makeNode(EnTeteFonct);
-        Node* type = makeNode(Struct);
-        Node* typeName = makeNode(Ident);
-        Node* ident = makeNode(Ident);
-        addChild(cur, type); addChild(type, typeName); addChild(cur, ident); addChild(cur, $5);
+        //Node* type = makeNode(Struct);
+        Node* typeName = makeNodeFull($2);
+        Node* name = makeNodeFull($3);
+        addChild(cur, typeName); addChild(cur, name); addChild(cur, $5);
         $$ = cur;
        }
     ;
@@ -131,30 +158,30 @@ Parametres:
     ;
 ListTypVar:
        ListTypVar ',' TYPE IDENT {
-        Node* type = makeNode(Type);
-        Node* ident = makeNode(Ident);
+        Node* type = makeNodeFull($3);
+        Node* ident = makeNodeFull($4);
         addChild($1, type); addChild(type, ident);
         $$ = $1;
         }
     |  ListTypVar ',' STRUCT IDENT IDENT {
-        Node* type = makeNode(Struct);
-        Node* typeName = makeNode(Ident);
-        Node* ident = makeNode(Ident);
-        addChild($1, type); addChild(type, typeName); addChild(typeName, ident);
+        //Node* type = makeNode(Struct);
+        Node* typeName = makeNodeFull($4);
+        Node* ident = makeNodeFull($5);
+        addChild($1, typeName); addChild(typeName, ident);
         $$ = $1;
        }
     |  STRUCT IDENT IDENT {
         Node* cur = makeNode(ListTypVar);
-        Node* type = makeNode(Struct);
-        Node* typeName = makeNode(Ident);
-        Node* ident = makeNode(Ident);
-        addChild(cur, type); addChild(type, typeName); addChild(typeName, ident);
+        //Node* type = makeNode(Struct);
+        Node* typeName = makeNodeFull($2);
+        Node* ident = makeNodeFull($3);
+        addChild(cur, typeName); addChild(typeName, ident);
         $$ = cur;
        }
     |  TYPE IDENT {
         Node* cur = makeNode(ListTypVar);
-        Node* type = makeNode(Type);
-        Node* ident = makeNode(Ident);
+        Node* type = makeNodeFull($1);
+        Node* ident = makeNodeFull($2);
         addChild(cur, type); addChild(type, ident);
         $$ = cur;
         }
