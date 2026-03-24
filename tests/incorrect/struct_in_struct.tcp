@@ -1,0 +1,7 @@
+struct structure1{
+    struct sturcture2 {
+        int x;
+        int y;
+    }
+    int z;
+}

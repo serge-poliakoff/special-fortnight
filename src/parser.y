@@ -221,57 +221,57 @@ Instr:
     |  ';'
     ;
 IdExpr:
-    IDENT {
-     Node* cur = makeNode(IdExpr);
-     addChild(cur, makeNodeFull($1));
+    IDENT '.' IdExpr {
+     Node* cur = makeNodeFull($1);
+     addChild(cur, $3);// addChild(cur, makeNodeFull($3));
      $$ = cur;
     }
-    |  IDENT '.' IDENT {
-     Node* cur = makeNode(IdExpr);
-     addChild(cur, makeNodeFull($1)); addChild(cur, makeNodeFull($3));
-     $$ = cur;
+    | IDENT {
+     //Node* cur = makeNode(IdExpr);
+     //addChild(cur, makeNodeFull($1));
+     $$ = makeNodeFull($1);
     }
 Exp :  Exp OR TB {Node* oper = makeNode(Or);
-        addChild($1, oper); addChild($1, $3);
-        $$ = $1;}
+        addChild(oper, $1); addChild(oper, $3);
+        $$ = oper;}
     |  TB { $$ = $1; }
     ;
 TB  :  TB AND FB {Node* oper = makeNode(And);
-        addChild($1, oper); addChild($1, $3);
-        $$ = $1;}
+        addChild(oper, $1); addChild(oper, $3);
+        $$ = oper;}
     |  FB { $$ = $1; }
     ;
 FB  :  FB EQ M {Node* oper = makeNode(Eq);
-        addChild($1, oper); addChild($1, $3);
-        $$ = $1;}
+        addChild(oper, $1); addChild(oper, $3);
+        $$ = oper;}
     |  M { $$ = $1; }
     ;
 M   :  M ORDER E {Node* oper = makeNode(Order);
-        addChild($1, oper); addChild($1, $3);
-        $$ = $1;}
+        addChild(oper, $1); addChild(oper, $3);
+        $$ = oper;}
     |  E { $$ = $1; }
     ;
 E   :  E ADDSUB T {Node* oper = makeNode(Addsub);
-        addChild($1, oper); addChild($1, $3);
-        $$ = $1;}
+        addChild(oper, $1); addChild(oper, $3);
+        $$ = oper;}
     |  T { $$ = $1; }
     ;    
 T   :  T DIVSTAR F {Node* oper = makeNode(Divstar);
-        addChild($1, oper); addChild($1, $3);
-        $$ = $1;}
+        addChild(oper, $1); addChild(oper, $3);
+        $$ = oper;}
     |  F { $$ = $1; }
     ;
 F   :  ADDSUB F {
-        Node* cur = makeNode(F);
-        addChild(cur, makeNode(Addsub)); addChild(cur, $2);
+        Node* cur = makeNode(Addsub);
+        addChild(cur, $2);
         $$ = cur;}
-    |  '!' F {Node* cur = makeNode(F); addChild(cur, $2); $$ = cur;}
+    |  '!' F {Node* cur = makeNode(F); addChild(cur, $2); $$ = cur;  /* add NOT oper*/}
     |  '(' Exp ')' { $$ = $2; }
-    |  NUM {Node* cur = makeNode(F); addChild(cur, makeNodeFull($1)); $$ = cur;}
-    |  CHARACTER {Node* cur = makeNode(F); addChild(cur, makeNodeFull($1)); $$ = cur;}
+    |  NUM {$$ = makeNodeFull($1);}
+    |  CHARACTER {$$ = makeNodeFull($1);}
     |  IdExpr { $$ = $1;}
-    |  IDENT '(' Arguments  ')' {Node* cur = makeNode(F);
-        addChild(cur, makeNodeFull($1)); addChild(cur, $3); $$ = cur;}
+    |  IDENT '(' Arguments  ')' {Node* cur = makeNodeFull($1);
+        addChild(cur, $3); $$ = cur;}
     ;
 Arguments:
        ListExp {

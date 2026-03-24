@@ -1,0 +1,11 @@
+struct rect{
+    int w, h;
+};
+
+int main(void){
+    struct rect rect;
+    rect.w = 10;
+    rect.h = 21;
+
+    return rect.w;
+}

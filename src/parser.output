@@ -1,4 +1,4 @@
-State 131 conflicts: 1 shift/reduce
+State 132 conflicts: 1 shift/reduce
 
 
 Grammar
@@ -51,8 +51,8 @@ Grammar
    33      | '{' SuiteInstr '}'
    34      | ';'
 
-   35 IdExpr: IDENT
-   36       | IDENT '.' IDENT
+   35 IdExpr: IDENT '.' IdExpr
+   36       | IDENT
 
    37 Exp: Exp OR TB
    38    | TB
@@ -94,7 +94,7 @@ Terminals, with rules where they appear
     '(' (40) 14 15 16 27 28 29 30 51 55
     ')' (41) 14 15 16 27 28 29 30 51 55
     ',' (44) 9 19 20 58
-    '.' (46) 36
+    '.' (46) 35
     ';' (59) 2 3 4 6 7 26 30 31 32 34
     '=' (61) 26
     '{' (123) 3 23 33
@@ -160,7 +160,7 @@ Nonterminals, with rules where they appear
         on right: 24 27 28 29
     IdExpr <node> (41)
         on left: 35 36
-        on right: 26 54
+        on right: 26 35 54
     Exp <node> (42)
         on left: 37 38
         on right: 26 27 28 29 31 37 51 58 59
@@ -669,13 +669,13 @@ State 53
 State 54
 
    30 Instr: IDENT • '(' Arguments ')' ';'
-   35 IdExpr: IDENT •
-   36       | IDENT • '.' IDENT
+   35 IdExpr: IDENT • '.' IdExpr
+   36       | IDENT •
 
     '('  shift, and go to state 70
     '.'  shift, and go to state 71
 
-    $default  reduce using rule 35 (IdExpr)
+    $default  reduce using rule 36 (IdExpr)
 
 
 State 55
@@ -833,9 +833,11 @@ State 70
 
 State 71
 
-   36 IdExpr: IDENT '.' • IDENT
+   35 IdExpr: IDENT '.' • IdExpr
 
     IDENT  shift, and go to state 98
+
+    IdExpr  go to state 99
 
 
 State 72
@@ -851,7 +853,7 @@ State 72
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    Exp     go to state 99
+    Exp     go to state 100
     TB      go to state 83
     FB      go to state 84
     M       go to state 85
@@ -872,7 +874,7 @@ State 73
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    Exp     go to state 100
+    Exp     go to state 101
     TB      go to state 83
     FB      go to state 84
     M       go to state 85
@@ -897,14 +899,14 @@ State 75
 
 State 76
 
-   35 IdExpr: IDENT •
-   36       | IDENT • '.' IDENT
+   35 IdExpr: IDENT • '.' IdExpr
+   36       | IDENT •
    55 F: IDENT • '(' Arguments ')'
 
-    '('  shift, and go to state 101
+    '('  shift, and go to state 102
     '.'  shift, and go to state 71
 
-    $default  reduce using rule 35 (IdExpr)
+    $default  reduce using rule 36 (IdExpr)
 
 
 State 77
@@ -919,7 +921,7 @@ State 77
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    F       go to state 102
+    F       go to state 103
 
 
 State 78
@@ -941,7 +943,7 @@ State 79
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    Exp     go to state 103
+    Exp     go to state 104
     TB      go to state 83
     FB      go to state 84
     M       go to state 85
@@ -962,7 +964,7 @@ State 80
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    F       go to state 104
+    F       go to state 105
 
 
 State 81
@@ -977,8 +979,8 @@ State 82
    31 Instr: RETURN Exp • ';'
    37 Exp: Exp • OR TB
 
-    OR   shift, and go to state 105
-    ';'  shift, and go to state 106
+    OR   shift, and go to state 106
+    ';'  shift, and go to state 107
 
 
 State 83
@@ -986,7 +988,7 @@ State 83
    38 Exp: TB •
    39 TB: TB • AND FB
 
-    AND  shift, and go to state 107
+    AND  shift, and go to state 108
 
     $default  reduce using rule 38 (Exp)
 
@@ -996,7 +998,7 @@ State 84
    40 TB: FB •
    41 FB: FB • EQ M
 
-    EQ  shift, and go to state 108
+    EQ  shift, and go to state 109
 
     $default  reduce using rule 40 (TB)
 
@@ -1006,7 +1008,7 @@ State 85
    42 FB: M •
    43 M: M • ORDER E
 
-    ORDER  shift, and go to state 109
+    ORDER  shift, and go to state 110
 
     $default  reduce using rule 42 (FB)
 
@@ -1016,7 +1018,7 @@ State 86
    44 M: E •
    45 E: E • ADDSUB T
 
-    ADDSUB  shift, and go to state 110
+    ADDSUB  shift, and go to state 111
 
     $default  reduce using rule 44 (M)
 
@@ -1026,7 +1028,7 @@ State 87
    46 E: T •
    47 T: T • DIVSTAR F
 
-    DIVSTAR  shift, and go to state 111
+    DIVSTAR  shift, and go to state 112
 
     $default  reduce using rule 46 (E)
 
@@ -1049,7 +1051,7 @@ State 89
     RETURN  shift, and go to state 57
     ';'     shift, and go to state 58
     '{'     shift, and go to state 59
-    '}'     shift, and go to state 112
+    '}'     shift, and go to state 113
 
     Instr   go to state 61
     IdExpr  go to state 62
@@ -1067,7 +1069,7 @@ State 90
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    Exp     go to state 113
+    Exp     go to state 114
     TB      go to state 83
     FB      go to state 84
     M       go to state 85
@@ -1087,7 +1089,7 @@ State 92
 
    20 ListTypVar: ListTypVar ',' STRUCT IDENT • IDENT
 
-    IDENT  shift, and go to state 114
+    IDENT  shift, and go to state 115
 
 
 State 93
@@ -1102,7 +1104,7 @@ State 94
     7 DeclStructVars: DeclStructVars STRUCT IDENT Declarateurs • ';'
     9 Declarateurs: Declarateurs • ',' IDENT
 
-    ';'  shift, and go to state 115
+    ';'  shift, and go to state 116
     ','  shift, and go to state 21
 
 
@@ -1111,7 +1113,7 @@ State 95
    37 Exp: Exp • OR TB
    59 ListExp: Exp •
 
-    OR  shift, and go to state 105
+    OR  shift, and go to state 106
 
     $default  reduce using rule 59 (ListExp)
 
@@ -1120,7 +1122,7 @@ State 96
 
    30 Instr: IDENT '(' Arguments • ')' ';'
 
-    ')'  shift, and go to state 116
+    ')'  shift, and go to state 117
 
 
 State 97
@@ -1128,38 +1130,48 @@ State 97
    56 Arguments: ListExp •
    58 ListExp: ListExp • ',' Exp
 
-    ','  shift, and go to state 117
+    ','  shift, and go to state 118
 
     $default  reduce using rule 56 (Arguments)
 
 
 State 98
 
-   36 IdExpr: IDENT '.' IDENT •
+   35 IdExpr: IDENT • '.' IdExpr
+   36       | IDENT •
+
+    '.'  shift, and go to state 71
 
     $default  reduce using rule 36 (IdExpr)
 
 
 State 99
 
-   27 Instr: IF '(' Exp • ')' Instr
-   28      | IF '(' Exp • ')' Instr ELSE Instr
-   37 Exp: Exp • OR TB
+   35 IdExpr: IDENT '.' IdExpr •
 
-    OR   shift, and go to state 105
-    ')'  shift, and go to state 118
+    $default  reduce using rule 35 (IdExpr)
 
 
 State 100
 
-   29 Instr: WHILE '(' Exp • ')' Instr
+   27 Instr: IF '(' Exp • ')' Instr
+   28      | IF '(' Exp • ')' Instr ELSE Instr
    37 Exp: Exp • OR TB
 
-    OR   shift, and go to state 105
+    OR   shift, and go to state 106
     ')'  shift, and go to state 119
 
 
 State 101
+
+   29 Instr: WHILE '(' Exp • ')' Instr
+   37 Exp: Exp • OR TB
+
+    OR   shift, and go to state 106
+    ')'  shift, and go to state 120
+
+
+State 102
 
    55 F: IDENT '(' • Arguments ')'
 
@@ -1180,34 +1192,34 @@ State 101
     E          go to state 86
     T          go to state 87
     F          go to state 88
-    Arguments  go to state 120
+    Arguments  go to state 121
     ListExp    go to state 97
 
 
-State 102
+State 103
 
    49 F: ADDSUB F •
 
     $default  reduce using rule 49 (F)
 
 
-State 103
+State 104
 
    37 Exp: Exp • OR TB
    51 F: '(' Exp • ')'
 
-    OR   shift, and go to state 105
-    ')'  shift, and go to state 121
+    OR   shift, and go to state 106
+    ')'  shift, and go to state 122
 
 
-State 104
+State 105
 
    50 F: '!' F •
 
     $default  reduce using rule 50 (F)
 
 
-State 105
+State 106
 
    37 Exp: Exp OR • TB
 
@@ -1219,7 +1231,7 @@ State 105
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    TB      go to state 122
+    TB      go to state 123
     FB      go to state 84
     M       go to state 85
     E       go to state 86
@@ -1227,14 +1239,14 @@ State 105
     F       go to state 88
 
 
-State 106
+State 107
 
    31 Instr: RETURN Exp ';' •
 
     $default  reduce using rule 31 (Instr)
 
 
-State 107
+State 108
 
    39 TB: TB AND • FB
 
@@ -1246,14 +1258,14 @@ State 107
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    FB      go to state 123
+    FB      go to state 124
     M       go to state 85
     E       go to state 86
     T       go to state 87
     F       go to state 88
 
 
-State 108
+State 109
 
    41 FB: FB EQ • M
 
@@ -1265,13 +1277,13 @@ State 108
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    M       go to state 124
+    M       go to state 125
     E       go to state 86
     T       go to state 87
     F       go to state 88
 
 
-State 109
+State 110
 
    43 M: M ORDER • E
 
@@ -1283,12 +1295,12 @@ State 109
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    E       go to state 125
+    E       go to state 126
     T       go to state 87
     F       go to state 88
 
 
-State 110
+State 111
 
    45 E: E ADDSUB • T
 
@@ -1300,11 +1312,11 @@ State 110
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    T       go to state 126
+    T       go to state 127
     F       go to state 88
 
 
-State 111
+State 112
 
    47 T: T DIVSTAR • F
 
@@ -1316,47 +1328,47 @@ State 111
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    F       go to state 127
+    F       go to state 128
 
 
-State 112
+State 113
 
    33 Instr: '{' SuiteInstr '}' •
 
     $default  reduce using rule 33 (Instr)
 
 
-State 113
+State 114
 
    26 Instr: IdExpr '=' Exp • ';'
    37 Exp: Exp • OR TB
 
-    OR   shift, and go to state 105
-    ';'  shift, and go to state 128
+    OR   shift, and go to state 106
+    ';'  shift, and go to state 129
 
 
-State 114
+State 115
 
    20 ListTypVar: ListTypVar ',' STRUCT IDENT IDENT •
 
     $default  reduce using rule 20 (ListTypVar)
 
 
-State 115
+State 116
 
     7 DeclStructVars: DeclStructVars STRUCT IDENT Declarateurs ';' •
 
     $default  reduce using rule 7 (DeclStructVars)
 
 
-State 116
+State 117
 
    30 Instr: IDENT '(' Arguments ')' • ';'
 
-    ';'  shift, and go to state 129
+    ';'  shift, and go to state 130
 
 
-State 117
+State 118
 
    58 ListExp: ListExp ',' • Exp
 
@@ -1368,7 +1380,7 @@ State 117
     '!'        shift, and go to state 80
 
     IdExpr  go to state 81
-    Exp     go to state 130
+    Exp     go to state 131
     TB      go to state 83
     FB      go to state 84
     M       go to state 85
@@ -1377,25 +1389,10 @@ State 117
     F       go to state 88
 
 
-State 118
+State 119
 
    27 Instr: IF '(' Exp ')' • Instr
    28      | IF '(' Exp ')' • Instr ELSE Instr
-
-    IDENT   shift, and go to state 54
-    IF      shift, and go to state 55
-    WHILE   shift, and go to state 56
-    RETURN  shift, and go to state 57
-    ';'     shift, and go to state 58
-    '{'     shift, and go to state 59
-
-    Instr   go to state 131
-    IdExpr  go to state 62
-
-
-State 119
-
-   29 Instr: WHILE '(' Exp ')' • Instr
 
     IDENT   shift, and go to state 54
     IF      shift, and go to state 55
@@ -1410,105 +1407,120 @@ State 119
 
 State 120
 
-   55 F: IDENT '(' Arguments • ')'
+   29 Instr: WHILE '(' Exp ')' • Instr
 
-    ')'  shift, and go to state 133
+    IDENT   shift, and go to state 54
+    IF      shift, and go to state 55
+    WHILE   shift, and go to state 56
+    RETURN  shift, and go to state 57
+    ';'     shift, and go to state 58
+    '{'     shift, and go to state 59
+
+    Instr   go to state 133
+    IdExpr  go to state 62
 
 
 State 121
+
+   55 F: IDENT '(' Arguments • ')'
+
+    ')'  shift, and go to state 134
+
+
+State 122
 
    51 F: '(' Exp ')' •
 
     $default  reduce using rule 51 (F)
 
 
-State 122
+State 123
 
    37 Exp: Exp OR TB •
    39 TB: TB • AND FB
 
-    AND  shift, and go to state 107
+    AND  shift, and go to state 108
 
     $default  reduce using rule 37 (Exp)
 
 
-State 123
+State 124
 
    39 TB: TB AND FB •
    41 FB: FB • EQ M
 
-    EQ  shift, and go to state 108
+    EQ  shift, and go to state 109
 
     $default  reduce using rule 39 (TB)
 
 
-State 124
+State 125
 
    41 FB: FB EQ M •
    43 M: M • ORDER E
 
-    ORDER  shift, and go to state 109
+    ORDER  shift, and go to state 110
 
     $default  reduce using rule 41 (FB)
 
 
-State 125
+State 126
 
    43 M: M ORDER E •
    45 E: E • ADDSUB T
 
-    ADDSUB  shift, and go to state 110
+    ADDSUB  shift, and go to state 111
 
     $default  reduce using rule 43 (M)
 
 
-State 126
+State 127
 
    45 E: E ADDSUB T •
    47 T: T • DIVSTAR F
 
-    DIVSTAR  shift, and go to state 111
+    DIVSTAR  shift, and go to state 112
 
     $default  reduce using rule 45 (E)
 
 
-State 127
+State 128
 
    47 T: T DIVSTAR F •
 
     $default  reduce using rule 47 (T)
 
 
-State 128
+State 129
 
    26 Instr: IdExpr '=' Exp ';' •
 
     $default  reduce using rule 26 (Instr)
 
 
-State 129
+State 130
 
    30 Instr: IDENT '(' Arguments ')' ';' •
 
     $default  reduce using rule 30 (Instr)
 
 
-State 130
+State 131
 
    37 Exp: Exp • OR TB
    58 ListExp: ListExp ',' Exp •
 
-    OR  shift, and go to state 105
+    OR  shift, and go to state 106
 
     $default  reduce using rule 58 (ListExp)
 
 
-State 131
+State 132
 
    27 Instr: IF '(' Exp ')' Instr •
    28      | IF '(' Exp ')' Instr • ELSE Instr
 
-    ELSE  shift, and go to state 134
+    ELSE  shift, and go to state 135
 
     ELSE      [reduce using rule 27 (Instr)]
     $default  reduce using rule 27 (Instr)
@@ -1528,21 +1540,21 @@ State 131
 
 
 
-State 132
+State 133
 
    29 Instr: WHILE '(' Exp ')' Instr •
 
     $default  reduce using rule 29 (Instr)
 
 
-State 133
+State 134
 
    55 F: IDENT '(' Arguments ')' •
 
     $default  reduce using rule 55 (F)
 
 
-State 134
+State 135
 
    28 Instr: IF '(' Exp ')' Instr ELSE • Instr
 
@@ -1553,11 +1565,11 @@ State 134
     ';'     shift, and go to state 58
     '{'     shift, and go to state 59
 
-    Instr   go to state 135
+    Instr   go to state 136
     IdExpr  go to state 62
 
 
-State 135
+State 136
 
    28 Instr: IF '(' Exp ')' Instr ELSE Instr •
 

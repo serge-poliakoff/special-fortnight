@@ -1,0 +1,26 @@
+struct rect{
+    int w, h;
+};
+
+int surface(struct rect r){
+    return r.w * r.h;
+}
+
+struct rect identity(void){
+    struct rect i;
+    i.w = 1;
+    i.h = 1;
+
+    return i;
+}
+
+struct rect greater(struct rect r1, struct rect r2){
+    int s1, s2;
+    s1 = surface(r1);
+    s2 = surface(r2);
+
+    if (s1 > s2)
+        return s1;
+    return s2;
+}
+

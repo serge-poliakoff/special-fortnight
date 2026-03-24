@@ -1,0 +1,18 @@
+struct structure1{
+    int a;
+    char b;
+    struct structure1 next;
+};
+
+struct structure1 global;
+
+int main(void){
+    struct innerStruct{
+        int innerInt, innerInt2;
+        char x;
+        char y;
+    };
+    struct structure1 local;
+
+    return local.next.next.a + local.next.b;
+}

@@ -1,0 +1,19 @@
+char return_char(void){
+    return 'a';
+}
+
+int return_int(void){
+    return 42;
+}
+
+void do_nothing(void){ }
+
+char with_params(int a, char b){
+    char c;
+    c = a + v;
+    return c;
+}
+
+int with_params2(int a, int b, int c){
+    return b;
+}

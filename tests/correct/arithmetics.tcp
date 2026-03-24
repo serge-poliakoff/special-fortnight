@@ -1,0 +1,9 @@
+int main(void){
+    int a, b;
+
+    a = a + b;
+    a = a + a * b;
+    a = (a + b) * b;
+    a = a - b;
+    a = a % (b - a);
+}

@@ -1,0 +1,4 @@
+struct structure{
+    int a.b;
+    char b.c, v.d;
+}
