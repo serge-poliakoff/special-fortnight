@@ -29,10 +29,10 @@ else                {return ELSE;}
 
 
 int                 { tree_label int_label;
-						int_label.type = ID; int_label.value.id = strdup("int");
+						int_label.type = TP; int_label.value.id = strdup("int");
 						yylval.value = int_label; return TYPE; }
 char                { tree_label int_label;
-						int_label.type = ID;
+						int_label.type = TP;
 						int_label.value.id = strdup("char");
 						yylval.value = int_label; return TYPE; }
 
@@ -54,22 +54,32 @@ struct              {
 }
 
 [0-9]+ {
-	//yylval.type = NUM;
 	yylval.value.type = INT;
 	yylval.value.value.number = atoi(yytext);
 	return NUM;
 }
 \'[^']+\' {
-	//yylval.type = CHARACTER;
 	yylval.value.type = CHAR;
 	yylval.value.value.character = yytext[1];
 	return CHARACTER;
 }
 
-"=="|"!="           {return EQ;}
-">"|">="|"<"|"<="   {return ORDER;}
-[+-]                {return ADDSUB;}
-[*/%]               {return DIVSTAR;}
+"=="|"!="           {
+	yylval.value.type = OP;
+	yylval.value.value.id = strdup(yytext);
+	return EQ;}
+">"|">="|"<"|"<="   {
+	yylval.value.type = OP;
+	yylval.value.value.id = strdup(yytext);
+	return ORDER;}
+[+-]                {
+	yylval.value.type = OP;
+	yylval.value.value.id = strdup(yytext);
+	return ADDSUB;}
+[*/%]               {
+	yylval.value.type = OP;
+	yylval.value.value.id = strdup(yytext);
+	return DIVSTAR;}
 "||"                {return OR;}
 "&&"                {return AND;}
 

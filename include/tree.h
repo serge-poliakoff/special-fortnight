@@ -51,7 +51,7 @@ typedef enum {
   /* To avoid listing them twice, see https://stackoverflow.com/a/10966395 */
 } label_t;
 
-typedef enum { KEYWORD, INT, CHAR, ID } tree_label_type;
+typedef enum { KEYWORD, INT, CHAR, ID, TP, OP } tree_label_type;
 
 typedef struct  {
   tree_label_type type;

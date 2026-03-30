@@ -11,9 +11,10 @@ void yyerror(const char* s);
 Node* prog;
 
 //TODO:
-// - remove DeclStructVars, ListTypVar and ListExp from the tree
+// - remove DeclStructVars from the tree
 // - add concrete operations to ORDER, DIVSTAR and ADDSUB
 //      (maybe with different tree_label.type like ops)
+// - make node for NOT bool operator
 
 //the func below is not to be used - for now stick to IDENT names for structure types - 
 // anyway because of lexer you can't define "struct int" or smth like this,
@@ -47,10 +48,10 @@ void create_struct_type_name(tree_label *identity){
 %token <value> NUM       /* int value */
 %token <value> IDENT     /* function/variable name */
 %token <value> TYPE      /* type simple: int or char */
-%token <node> EQ                /* egality (’==’) and inegality (’!=’) operators */
-%token <node> ORDER             /* comparaison operators ’<’, ’<=’, ’>’ and ’>=’ */
-%token <node> ADDSUB            /* ’+’ et ’-’ (binairy or unary) */
-%token <node> DIVSTAR           /* ’*’, ’/’ and ’%’ */
+%token <value> EQ                /* egality (’==’) and inegality (’!=’) operators */
+%token <value> ORDER             /* comparaison operators ’<’, ’<=’, ’>’ and ’>=’ */
+%token <value> ADDSUB            /* ’+’ et ’-’ (binairy or unary) */
+%token <value> DIVSTAR           /* ’*’, ’/’ and ’%’ */
 %token <node> OR
 %token <node> AND
 
@@ -76,18 +77,14 @@ DeclVars:
        DeclVars TYPE Declarateurs ';' {Node *type = makeNodeFull($2);
         addChild($1, type); addChild(type, $3); $$ = $1;}
     |  DeclVars STRUCT IDENT '{' DeclStructVars '}' ';' {
-        Node *type = makeNode(Struct); Node *typeName = makeNodeFull($3);
+        Node *type = makeNode(Struct); $3.type = TP; Node *typeName = makeNodeFull($3);
         addChild(type, typeName);
         addChild(typeName, $5);
         addChild($1, type);
         $$ = $1;
     }
     |  DeclVars STRUCT IDENT Declarateurs ';' {
-        // construct new type name in form "struct IDENT"
-        
-
-        //Node *type = makeNode(Struct); Node *typeName = makeNode(Ident);
-        //addChild($1, type); addChild(type, typeName); addChild(typeName, $4);
+        $3.type = TP;
         Node *type = makeNodeFull($3); addChild($1, type);
         addChild(type, $4);
         $$ = $1;}
@@ -95,12 +92,18 @@ DeclVars:
     ;
 DeclStructVars:
        DeclStructVars TYPE Declarateurs ';' {Node *type = makeNodeFull($2);
-        addChild($1, type); addChild(type, $3); $$ = $1;}
+        addSibling($1, type); addChild(type, $3); $$ = $1;}
     |  DeclStructVars STRUCT IDENT Declarateurs ';' {
-        /*Node *type = makeNode(Struct);*/ Node *typeName = makeNodeFull($3);
-        addChild($1, typeName); addChild(typeName, $4);
+        $3.type = TP; Node *typeName = makeNodeFull($3);
+        addSibling($1, typeName); addChild(typeName, $4);
         $$ = $1;}
-    |  {Node* cur = makeNode(DeclStructVars); $$ = cur;}
+    |  TYPE Declarateurs ';' {Node *type = makeNodeFull($1);
+        addChild(type, $2); $$ = type;}
+    | STRUCT IDENT Declarateurs ';' {
+        $2.type = TP;
+        Node *typeName = makeNodeFull($2);
+        addChild(typeName, $3);
+        $$ = typeName;}
     ;
 Declarateurs:
        Declarateurs ',' IDENT {Node* id = makeNodeFull($3); addSibling($1, id);}
@@ -136,7 +139,7 @@ EnTeteFonct:
        }
     |  STRUCT IDENT IDENT '(' Parametres ')'{
         Node* cur = makeNode(EnTeteFonct);
-        //Node* type = makeNode(Struct);
+        $2.type = TP;
         Node* typeName = makeNodeFull($2);
         Node* name = makeNodeFull($3);
         addChild(cur, typeName); addChild(cur, name); addChild(cur, $5);
@@ -160,30 +163,28 @@ ListTypVar:
        ListTypVar ',' TYPE IDENT {
         Node* type = makeNodeFull($3);
         Node* ident = makeNodeFull($4);
-        addChild($1, type); addChild(type, ident);
+        addSibling($1, type); addChild(type, ident);
         $$ = $1;
         }
     |  ListTypVar ',' STRUCT IDENT IDENT {
-        //Node* type = makeNode(Struct);
+        $4.type = TP;
         Node* typeName = makeNodeFull($4);
         Node* ident = makeNodeFull($5);
-        addChild($1, typeName); addChild(typeName, ident);
+        addSibling($1, typeName); addChild(typeName, ident);
         $$ = $1;
        }
     |  STRUCT IDENT IDENT {
-        Node* cur = makeNode(ListTypVar);
-        //Node* type = makeNode(Struct);
+        $2.type = TP;
         Node* typeName = makeNodeFull($2);
         Node* ident = makeNodeFull($3);
-        addChild(cur, typeName); addChild(typeName, ident);
-        $$ = cur;
+        addChild(typeName, ident);
+        $$ = typeName; 
        }
     |  TYPE IDENT {
-        Node* cur = makeNode(ListTypVar);
         Node* type = makeNodeFull($1);
         Node* ident = makeNodeFull($2);
-        addChild(cur, type); addChild(type, ident);
-        $$ = cur;
+        addChild(type, ident);
+        $$ = type;
         }
     ;
 Corps: '{' DeclVars SuiteInstr '}' {
@@ -268,28 +269,28 @@ TB  :  TB AND FB {Node* oper = makeNode(And);
         $$ = oper;}
     |  FB { $$ = $1; }
     ;
-FB  :  FB EQ M {Node* oper = makeNode(Eq);
+FB  :  FB EQ M {Node* oper = makeNodeFull($2);
         addChild(oper, $1); addChild(oper, $3);
         $$ = oper;}
     |  M { $$ = $1; }
     ;
-M   :  M ORDER E {Node* oper = makeNode(Order);
+M   :  M ORDER E {Node* oper = makeNodeFull($2);
         addChild(oper, $1); addChild(oper, $3);
         $$ = oper;}
     |  E { $$ = $1; }
     ;
-E   :  E ADDSUB T {Node* oper = makeNode(Addsub);
+E   :  E ADDSUB T {Node* oper = makeNodeFull($2);
         addChild(oper, $1); addChild(oper, $3);
         $$ = oper;}
     |  T { $$ = $1; }
     ;    
-T   :  T DIVSTAR F {Node* oper = makeNode(Divstar);
+T   :  T DIVSTAR F {Node* oper = makeNodeFull($2);
         addChild(oper, $1); addChild(oper, $3);
         $$ = oper;}
     |  F { $$ = $1; }
     ;
 F   :  ADDSUB F {
-        Node* cur = makeNode(Addsub);
+        Node* cur = makeNodeFull($1);
         addChild(cur, $2);
         $$ = cur;}
     |  '!' F {Node* cur = makeNode(F); addChild(cur, $2); $$ = cur;  /* add NOT oper*/}
@@ -310,13 +311,14 @@ Arguments:
     ;
 ListExp:
        ListExp ',' Exp {
-        addChild($1, $3);
+        //addChild($1, $3);
+        addSibling($1, $3);
         $$ = $1;
     }
     |  Exp {
-        Node *cur = makeNode(ListExp);
-        addChild(cur, $1);
-        $$ = cur;
+        //Node *cur = makeNode(ListExp);
+        //addChild(cur, $1);
+        $$ = $1;//cur;
     }
     ;
 %%

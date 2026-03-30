@@ -60,7 +60,7 @@ void deleteTree(Node *node) {
   if (node->nextSibling) {
     deleteTree(node->nextSibling);
   }
-  if (node->label.type == 3){ // id
+  if (node->label.type == ID || node->label.type == TP || node->label.type == OP){ // id
     //printf("Free %s", node->label.value.id);
     free(node->label.value.id);
   }
