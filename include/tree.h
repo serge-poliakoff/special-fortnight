@@ -1,4 +1,6 @@
 /* tree.h */
+#ifndef TREE
+#define TREE 1
 
 #define FOREACH_TOKEN(TOKEN) \
         TOKEN(Character)   \
@@ -38,7 +40,8 @@
         TOKEN(T)  \
         TOKEN(F)  \
         TOKEN(Arguments)  \
-        TOKEN(ListExp)
+        TOKEN(ListExp)  \
+        TOKEN(Not)
 
 #define GENERATE_ENUM(ENUM) ENUM,
 #define GENERATE_STRING(STRING) #STRING,
@@ -81,3 +84,6 @@ void printNode(Node *node);
 #define FIRSTCHILD(node) node->firstChild
 #define SECONDCHILD(node) node->firstChild->nextSibling
 #define THIRDCHILD(node) node->firstChild->nextSibling->nextSibling
+
+
+#endif

@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include <tree.h>
+#include <semantics.h>
 extern int yylex();
 extern int yyparse();
 extern FILE* yyin;
@@ -11,9 +13,6 @@ void yyerror(const char* s);
 Node* prog;
 
 //TODO:
-// - remove DeclStructVars from the tree
-// - add concrete operations to ORDER, DIVSTAR and ADDSUB
-//      (maybe with different tree_label.type like ops)
 // - make node for NOT bool operator
 
 //the func below is not to be used - for now stick to IDENT names for structure types - 
@@ -293,7 +292,7 @@ F   :  ADDSUB F {
         Node* cur = makeNodeFull($1);
         addChild(cur, $2);
         $$ = cur;}
-    |  '!' F {Node* cur = makeNode(F); addChild(cur, $2); $$ = cur;  /* add NOT oper*/}
+    |  '!' F {Node* cur = makeNode(Not); addChild(cur, $2); $$ = cur;  /* add NOT oper*/}
     |  '(' Exp ')' { $$ = $2; }
     |  NUM {$$ = makeNodeFull($1);}
     |  CHARACTER {$$ = makeNodeFull($1);}
@@ -326,16 +325,18 @@ ListExp:
 extern int linenum;
 void yyerror(const char* s){
     fprintf(stderr, "Syntax error on line %d: %s\n", linenum, s);
-	deleteTree(prog);
+	//deleteTree(prog);
 	exit(1);
 }
-
+ 
 int main(int argc, char **argv) {
 	yyin = stdin;
 
 	do {
 		yyparse();
 	} while(!feof(yyin));
+
+    
 
     if(argc > 1){
         if (strcmp(argv[1], "--dry-run") != 0){
@@ -344,6 +345,7 @@ int main(int argc, char **argv) {
     }else{
 	    printTree(prog);
     }
+    analyse_semantics(prog);
 	deleteTree(prog);
 	printf("Parsed successfully\n");
 	return 0;

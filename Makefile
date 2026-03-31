@@ -6,7 +6,7 @@ LEX=lexer
 INC=./include
 OBJ=./obj
 
-bin/tpcas: $(OBJ)/$(PARS).tab.o $(OBJ)/lex.yy.o $(OBJ)/tree.o
+bin/tpcas: $(OBJ)/$(PARS).tab.o $(OBJ)/lex.yy.o $(OBJ)/tree.o $(OBJ)/semantics.o
 	$(CC) $(CFLAGS) $^ -o $@ -lfl
 	./test.sh
 
@@ -18,6 +18,11 @@ $(OBJ)/%.o: src/%.c
 $(OBJ)/lex.yy.o: src/lex.yy.c $(INC)/$(PARS).tab.h
 
 $(OBJ)/$(PARS).tab.o: src/$(PARS).tab.c $(INC)/tree.h
+
+$(OBJ)/tree.o: src/tree.c $(INC)/tree.h
+
+$(OBJ)/semantics.o: src/semantics.c $(INC)/semantics.h $(INC)/tree.h
+
 
 #c scripts of lex and bison
 
