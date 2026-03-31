@@ -1,0 +1,7 @@
+
+char char1, char2, char3;
+int num;
+
+int main(void){
+    return 1;
+}

@@ -54,6 +54,12 @@ typedef enum {
   /* To avoid listing them twice, see https://stackoverflow.com/a/10966395 */
 } label_t;
 
+/// @brief KEYWORD stands for language keyword (struc for declaring a struct),
+/// INT for integer value
+/// CHAR for character value
+/// ID for variable or function identifier
+/// TP for type, if the type name would be then contained in tree_label.value.id
+/// OP for operator, if the operator signature would be then contained in tree_label.value.id
 typedef enum { KEYWORD, INT, CHAR, ID, TP, OP } tree_label_type;
 
 typedef struct  {
@@ -72,11 +78,19 @@ typedef struct Node {
   int lineno;
 } Node;
 
+/// @brief makes KEYWORD tree node from just a label
+/// @param label - the keyword of tcp language
+/// @return pointer to created node
 Node *makeNode(label_t label);
+
 Node *makeNodeFull(tree_label label);
+
 void addSibling(Node *node, Node *sibling);
+
 void addChild(Node *parent, Node *child);
+
 void deleteTree(Node*node);
+
 void printTree(Node *node);
 
 void printNode(Node *node);

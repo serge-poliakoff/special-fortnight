@@ -10,6 +10,8 @@ bin/tpcas: $(OBJ)/$(PARS).tab.o $(OBJ)/lex.yy.o $(OBJ)/tree.o $(OBJ)/semantics.o
 	$(CC) $(CFLAGS) $^ -o $@ -lfl
 	./test.sh
 
+sem_tests: $(OBJ)/tree.o $(OBJ)/semantics.o $(OBJ)/semantic_tests.o
+	$(CC) $(CFLAGS) $^ -o bin/$@
 #objects
 
 $(OBJ)/%.o: src/%.c

@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "tree.h"
-extern int linenum;       /* from lexer */
+//extern int linenum;       /* from lexer */
 
 static const char *StringFromLabel[] = {
   FOREACH_TOKEN(GENERATE_STRING)
@@ -20,7 +20,7 @@ Node *makeNode(label_t label) {
   l.value.label = label;
   node->label = l;
   node-> firstChild = node->nextSibling = NULL;
-  node->lineno=linenum;
+  //node->lineno=linenum;
   return node;
 }
 
@@ -32,7 +32,7 @@ Node *makeNodeFull(tree_label label) {
   }
   node->label = label;
   node-> firstChild = node->nextSibling = NULL;
-  node->lineno=linenum;
+  //node->lineno=linenum;
   return node;
 }
 

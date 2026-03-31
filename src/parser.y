@@ -289,7 +289,7 @@ T   :  T DIVSTAR F {Node* oper = makeNodeFull($2);
     |  F { $$ = $1; }
     ;
 F   :  ADDSUB F {
-        Node* cur = makeNodeFull($1);
+        Node* cur = makeNodeFull($1);   //unary + or -
         addChild(cur, $2);
         $$ = cur;}
     |  '!' F {Node* cur = makeNode(Not); addChild(cur, $2); $$ = cur;  /* add NOT oper*/}
