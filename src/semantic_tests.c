@@ -196,24 +196,29 @@ int exprTestErr2(){
     varNode.firstChild = varNode.nextSibling = NULL;
 
     prog.firstChild = &declVars;
+    
     analyse_semantics(&prog);
 
     assert(check_type(&varNode, &declVars, NULL) == NULL);
     return 1;
 }
 
+/// todo: why no error in console ?
 /// @brief checks that check_type returns NULL for non-existing struct field
 int exprTestErr3(){
-    // struct rect { int w; } r;
-    Node structType, fieldW;
+    // struct rect { int w; };
+    Node structType, fieldW, fieldID;
     structType.label.type = TP;
     structType.label.value.id = "rect";
     structType.firstChild = &fieldW;
     structType.nextSibling = NULL;
     fieldW.label.type = TP;
     fieldW.label.value.id = "int";
-    fieldW.firstChild = NULL;
+    fieldW.firstChild = &fieldID;
     fieldW.nextSibling = NULL;
+    fieldID.label.type = ID;
+    fieldID.label.value.id = "w";
+    fieldID.firstChild = fieldID.nextSibling = NULL;
 
     Node declVars, typeRect, identR;
     declVars.label.type = KEYWORD;

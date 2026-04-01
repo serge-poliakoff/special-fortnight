@@ -5,8 +5,7 @@ obj/
 #object files
 **.o
 
-#test files
-**.tpc
+tcp_lang.txt
 
 #bison generated files
 **.tab.*

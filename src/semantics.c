@@ -210,7 +210,7 @@ extern void analyse_semantics(Node* tree){
     assert(tree != NULL);
 
     glob_vars = tree->firstChild;
-    /*functs = tree->firstChild->nextSibling;
+    functs = tree->firstChild->nextSibling;
     for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;
     analyse_variables(glob_vars, glob_types);
     /* check for "int main" is present in the tree, stop if not
