@@ -10,6 +10,15 @@ Node* glob_vars;    //pointer to program's global VarDecl
 Node* glob_types[MAX_TYPES];    //global custom types (structs)
 Node* functs;   //pointer to DeclFoncts node of tree
 
+extern char* check_type(Node* Exp, Node* localVars, Node** localtypes);
+
+/// @brief helper function for expression type analysing
+/// @param typeName name of a type
+/// @return 1 if type is int or char, 0 otherwise 
+static int int_or_char(char* typeName){
+    return ! (strcmp(typeName, "int") && strcmp(typeName, "char"));
+}
+
 /// @brief analyses VarDecl node of programm or function and collects all structure type
 /// declarations into a given typetable
 /// @param declVars pointer to VarDecl node
@@ -17,7 +26,7 @@ Node* functs;   //pointer to DeclFoncts node of tree
 static void analyse_variables(Node* declVars, Node** typetable){
 
 }
-
+ 
 /// @brief use to find a variable/field identity
 /// @param name name of variable/field to find
 /// @param place DeclVars or struct id node (childs are declarators)
@@ -91,18 +100,95 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
 }
 
 // Helper: check function call arguments (stub)
-static char* check_function_call(Node* funcNode, Node* arguments, Node* localVars, Node** localtypes) {
-    // TODO: implement function lookup and argument type checking
-    // For now, just return "int" as a placeholder
-    return "int";
+extern char* check_function_call(Node* funcNode, Node* localVars, Node** localtypes) {
+    // funcNode: ID node with function name, arguments: Arguments node
+    char* func_name = funcNode->label.value.id;
+    Node* arguments = funcNode->firstChild;
+
+    // searching function in program
+    Node* cur = functs ? functs->firstChild : NULL;
+    Node* found_func = NULL;
+    while (cur) {
+        // Each DeclFonct: firstChild is EnTeteFonct
+        Node* header = cur->firstChild;
+        if (header && header->firstChild && header->firstChild->nextSibling) {
+            Node* nameNode = header->firstChild->nextSibling;
+            if (nameNode->label.type == ID && strcmp(nameNode->label.value.id, func_name) == 0) {
+                found_func = cur;
+                break;
+            }
+        }
+        cur = cur->nextSibling;
+    }
+    if (!found_func) {
+        fprintf(stderr, "Semantic error: function '%s' not found\n", func_name);
+        exit(2);
+    }
+
+    // Get parameter list from EnTeteFonct
+    Node* header = found_func->firstChild;
+    char* returnType = header->firstChild->label.type == TP ?
+        header->firstChild->label.value.id : NULL; // return this if arguments are valid (NULL for void functions)
+    
+    Node* params = header->firstChild->nextSibling->nextSibling; // Parametres node
+    Node* param = params->firstChild;
+    // validate function without arguments
+    if (param -> label.type == KEYWORD && param -> label.value.label == Void){
+        if (arguments->firstChild == NULL){
+            return returnType;  // function's type
+        }else{
+            fprintf(stderr, "Semantic error: function '%s' has no parameters\n", func_name);
+            exit(2);
+        }
+    }
+
+    // Get argument list from Arguments node
+    Node* arg = arguments->firstChild;
+    int param_count = 0, arg_count = 0;
+    // Count params and args, and check types
+    while (param && arg) {
+        // Each param: type of parameter, its ID in the first child
+        Node* param_type_node = param;
+        Node* param_id_node = param_type_node->firstChild;
+        char* param_type = param_type_node->label.value.id;
+        char* arg_type = check_type(arg, localVars, localtypes);
+        if (strcmp(param_type, "int") == 0) {
+            if (!int_or_char(arg_type)) {
+                fprintf(stderr, "Semantic error: argument %d of '%s' must be int or char, got %s\n", param_count+1, func_name, arg_type);
+                exit(2);
+            }
+        } else if (strcmp(param_type, "char") == 0) {
+            if (strcmp(arg_type, "char") == 0) {
+                // ok
+            } else if (strcmp(arg_type, "int") == 0) {
+                fprintf(stderr, "Warning: passing int to char parameter %d of '%s'\n", param_count+1, func_name);
+            } else {
+                fprintf(stderr, "Semantic error: argument %d of '%s' must be char, got %s\n", param_count+1, func_name, arg_type);
+                exit(2);
+            }
+        } else {
+            // struct or other type
+            if (strcmp(param_type, arg_type) != 0) {
+                fprintf(stderr, "Semantic error: argument %d of '%s' must be %s, got %s\n", param_count+1, func_name, param_type, arg_type);
+                exit(2);
+            }
+        }
+        param = param->nextSibling;
+        arg = arg->nextSibling;
+        param_count++;
+        arg_count++;
+    }
+    // Check for extra/missing arguments
+    // todo: rewrite later: calculate number of arguments and parameters
+    if (param || arg) {
+        fprintf(stderr, "Semantic error: function '%s' expects %d arguments, got %d\n", func_name, param_count + (param != NULL), arg_count + (arg != NULL));
+        exit(2);
+    }
+    
+    return returnType;
 }
 
-/// @brief helper function for expression type analysing
-/// @param typeName name of a type
-/// @return 1 if type is int or char, 0 otherwise 
-static int int_or_char(char* typeName){
-    return ! (strcmp(typeName, "int") && strcmp(typeName, "char"));
-}
+
 
 
 /// @brief recursively checks the expression for semantic errors and determines its type
@@ -124,7 +210,7 @@ extern char* check_type(Node* Exp, Node* localVars, Node** localtypes){
         if (child != NULL){
             if (child->label.type == KEYWORD && child->label.value.label == Arguments) {
                 // Function call
-                return check_function_call(Exp, child, localVars, localtypes);
+                return check_function_call(Exp, localVars, localtypes);
             }
         }
         // Otherwise, variable lookup
@@ -213,6 +299,10 @@ extern void analyse_semantics(Node* tree){
     functs = tree->firstChild->nextSibling;
     for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;
     analyse_variables(glob_vars, glob_types);
+
+    /*printf("Semantics : printing functs tree \n");
+    printTree(functs);
+    printf("\n");*/
     /* check for "int main" is present in the tree, stop if not
 
     Node* cur_func = functs->firstChild; //current "DeclFonct" node

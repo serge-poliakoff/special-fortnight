@@ -138,6 +138,7 @@ int exprTest4(){
 }
 
 /// @brief checks that check_type returns NULL for struct/int division
+/// @return 1 if test passed 0 otherwise
 int exprTestErr1(){
     // struct rect { int w; } r; int x;
     Node structType, fieldW;
@@ -183,6 +184,7 @@ int exprTestErr1(){
 }
 
 /// @brief checks that check_type returns NULL for undeclared variable
+/// @return 1 if test passed 0 otherwise
 int exprTestErr2(){
     Node prog;
     Node declVars;
@@ -205,6 +207,7 @@ int exprTestErr2(){
 
 /// todo: why no error in console ?
 /// @brief checks that check_type returns NULL for non-existing struct field
+/// @return 1 if test passed 0 otherwise
 int exprTestErr3(){
     // struct rect { int w; };
     Node structType, fieldW, fieldID;
@@ -249,6 +252,192 @@ int exprTestErr3(){
     return 1;
 }
 
+/// @brief Validates a call to a int function with no parameters
+/// @return 1 if test passed 0 otherwise
+int funcsTest1(){
+    // Program: int testFunc(void) {}
+    Node prog, declVars, declFoncts, declFonct, header, typeNode, identNode, params, body;
+    Node voidKeyword; 
+    prog.label.type = KEYWORD; prog.label.value.label = Prog;
+    prog.firstChild = &declVars; prog.nextSibling = NULL;
+
+    declVars.label.type = KEYWORD; declVars.label.value.label = DeclVars;
+    declVars.firstChild = NULL; declVars.nextSibling = &declFoncts;
+
+    declFoncts.label.type = KEYWORD; declFoncts.label.value.label = DeclFoncts;
+    declFoncts.firstChild = &declFonct; declFoncts.nextSibling = NULL;
+
+    declFonct.label.type = KEYWORD; declFonct.label.value.label = DeclFonct;
+    declFonct.firstChild = &header; declFonct.nextSibling = NULL;
+
+    header.label.type = KEYWORD; header.label.value.label = EnTeteFonct;
+    header.firstChild = &typeNode; header.nextSibling = &body;
+
+    typeNode.label.type = TP; typeNode.label.value.id = "int";
+    typeNode.firstChild = NULL; typeNode.nextSibling = &identNode;
+
+    identNode.label.type = ID; identNode.label.value.id = "testFunc";
+    identNode.firstChild = NULL; identNode.nextSibling = &params;
+
+    params.label.type = KEYWORD; params.label.value.label = Parametres;
+    params.firstChild = &voidKeyword; params.nextSibling = NULL;
+
+    voidKeyword.label.type = KEYWORD; voidKeyword.label.value.label = Void;
+    voidKeyword.firstChild = voidKeyword.nextSibling = NULL;
+
+    body.label.type = KEYWORD; body.label.value.label = Corps;
+    body.firstChild = NULL; body.nextSibling = NULL;
+
+    
+
+    // Set up global variables
+    analyse_semantics(&prog);
+    // Call node: testFunc()
+    Node callNode, argsNode;
+    callNode.label.type = ID; callNode.label.value.id = "testFunc";
+    callNode.firstChild = &argsNode; callNode.nextSibling = NULL;
+    argsNode.label.type = KEYWORD; argsNode.label.value.label = Arguments;
+    argsNode.firstChild = NULL; argsNode.nextSibling = NULL;
+
+    
+    // Should return "int"
+    assert(strcmp(check_function_call(&callNode, NULL, NULL), "int") == 0);
+    return 1;
+}
+
+/// @brief Validates a call to a void function with int and char parameters
+/// @return 1 if test passed 0 otherwise
+int funcsTest2(){
+    // Program: void testFunc(int a, char b) {}
+    Node prog, declVars, declFoncts, declFonct, header, typeNode, identNode, params, param1, param1id, param2, param2id, body;
+    prog.label.type = KEYWORD; prog.label.value.label = Prog;
+    prog.firstChild = &declVars; prog.nextSibling = NULL;
+    declVars.label.type = KEYWORD; declVars.label.value.label = DeclVars;
+    declVars.firstChild = NULL; declVars.nextSibling = &declFoncts;
+    declFoncts.label.type = KEYWORD; declFoncts.label.value.label = DeclFoncts;
+    declFoncts.firstChild = &declFonct; declFoncts.nextSibling = NULL;
+    declFonct.label.type = KEYWORD; declFonct.label.value.label = DeclFonct;
+    declFonct.firstChild = &header; declFonct.nextSibling = NULL;
+    header.label.type = KEYWORD; header.label.value.label = EnTeteFonct;
+    header.firstChild = &typeNode; header.nextSibling = &body;
+
+    typeNode.label.type = KEYWORD; typeNode.label.value.label = Void;
+    typeNode.firstChild = NULL; typeNode.nextSibling = &identNode;
+
+    identNode.label.type = ID; identNode.label.value.id = "testFunc";
+    identNode.firstChild = NULL; identNode.nextSibling = &params;
+
+    params.label.type = KEYWORD; params.label.value.label = Parametres;
+    params.firstChild = &param1; params.nextSibling = NULL;
+    param1.label.type = TP; param1.label.value.id = "int";
+    param1.firstChild = &param1id; param1.nextSibling = &param2;
+    param1id.label.type = ID; param1id.label.value.id = "a";
+    param1id.firstChild = param1id.nextSibling = NULL;
+    param2.label.type = TP; param2.label.value.id = "char";
+    param2.firstChild = &param2id; param2.nextSibling = NULL;
+    param2id.label.type = ID; param2id.label.value.id = "b";
+    param2id.firstChild = param2id.nextSibling = NULL;
+    body.label.type = KEYWORD; body.label.value.label = Corps;
+    body.firstChild = NULL; body.nextSibling = NULL;
+    // Set up global variables
+    analyse_semantics(&prog);
+    // Call node: testFunc(1, 'c')
+    Node callNode, argsNode, arg1, arg2;
+    callNode.label.type = ID; callNode.label.value.id = "testFunc";
+    callNode.firstChild = &argsNode; callNode.nextSibling = NULL;
+    argsNode.label.type = KEYWORD; argsNode.label.value.label = Arguments;
+    argsNode.firstChild = &arg1; argsNode.nextSibling = NULL;
+    arg1.label.type = INT; arg1.label.value.number = 1; arg1.firstChild = NULL; arg1.nextSibling = &arg2;
+    arg2.label.type = CHAR; arg2.label.value.character = 'c'; arg2.firstChild = arg2.nextSibling = NULL;
+    // Should return NULL (void)
+    assert(check_function_call(&callNode, NULL, NULL) == NULL);
+    // Call node: testFunc('a', 'b')
+    Node callNode2, argsNode2, arg3, arg4;
+    callNode2.label.type = ID; callNode2.label.value.id = "testFunc";
+    callNode2.firstChild = &argsNode2; callNode2.nextSibling = NULL;
+    argsNode2.label.type = KEYWORD; argsNode2.label.value.label = Arguments;
+    argsNode2.firstChild = &arg3; argsNode2.nextSibling = NULL;
+    arg3.label.type = CHAR; arg3.label.value.character = 'a'; arg3.firstChild = NULL; arg3.nextSibling = &arg4;
+    arg4.label.type = CHAR; arg4.label.value.character = 'b'; arg4.firstChild = arg4.nextSibling = NULL;
+    assert(check_function_call(&callNode2, NULL, NULL) == NULL);
+    //printf("Test 2 passed\n");
+    return 1;
+}
+
+/// @brief Validates a call to a char function with structure typed parameter
+/// @return 1 if test passed 0 otherwise
+int funcsTest3(){
+    // struct s1 { char c; }
+    Node structType, fieldC;
+    structType.label.type = TP;
+    structType.label.value.id = "s1";
+    structType.firstChild = &fieldC;
+    structType.nextSibling = NULL;
+    fieldC.label.type = TP;
+    fieldC.label.value.id = "char";
+    fieldC.firstChild = NULL;
+    fieldC.nextSibling = NULL;
+
+    // char testFunc(struct s1 param)
+    Node prog, declVars, declFoncts, declFonct, header, typeNode, identNode, params, param1, param1id, body;
+    prog.label.type = KEYWORD; prog.label.value.label = Prog;
+    prog.firstChild = &declVars; prog.nextSibling = NULL;
+    declVars.label.type = KEYWORD; declVars.label.value.label = DeclVars;
+    declVars.firstChild = NULL; declVars.nextSibling = &declFoncts;
+    declFoncts.label.type = KEYWORD; declFoncts.label.value.label = DeclFoncts;
+    declFoncts.firstChild = &declFonct; declFoncts.nextSibling = NULL;
+    declFonct.label.type = KEYWORD; declFonct.label.value.label = DeclFonct;
+    declFonct.firstChild = &header; declFonct.nextSibling = NULL;
+    header.label.type = KEYWORD; header.label.value.label = EnTeteFonct;
+    header.firstChild = &typeNode; header.nextSibling = &body;
+
+    typeNode.label.type = TP; typeNode.label.value.id = "char";
+    typeNode.firstChild = NULL; typeNode.nextSibling = &identNode;
+
+    identNode.label.type = ID; identNode.label.value.id = "testFunc";
+    identNode.firstChild = NULL; identNode.nextSibling = &params;
+
+    params.label.type = KEYWORD; params.label.value.label = Parametres;
+    params.firstChild = &param1; params.nextSibling = NULL;
+    param1.label.type = TP; param1.label.value.id = "s1";
+    param1.firstChild = &param1id; param1.nextSibling = NULL;
+    param1id.label.type = ID; param1id.label.value.id = "param";
+    param1id.firstChild = param1id.nextSibling = NULL;
+    body.label.type = KEYWORD; body.label.value.label = Corps;
+    body.firstChild = NULL; body.nextSibling = NULL;
+
+    // Local DeclVar: s1 ex;
+    Node localDeclVars, localTypeNode, localIdentNode;
+    localDeclVars.label.type = KEYWORD; localDeclVars.label.value.label = DeclVars;
+    localDeclVars.firstChild = &localTypeNode; localDeclVars.nextSibling = NULL;
+    localTypeNode.label.type = TP; localTypeNode.label.value.id = "s1";
+    localTypeNode.firstChild = &localIdentNode; localTypeNode.nextSibling = NULL;
+    localIdentNode.label.type = ID; localIdentNode.label.value.id = "ex";
+    localIdentNode.firstChild = localIdentNode.nextSibling = NULL;
+    Node* localtypes[2] = {&structType, NULL};
+    // Call node: testFunc(ex)
+    Node callNode, argsNode, arg1;
+    callNode.label.type = ID; callNode.label.value.id = "testFunc";
+    callNode.firstChild = &argsNode; callNode.nextSibling = NULL;
+    argsNode.label.type = KEYWORD; argsNode.label.value.label = Arguments;
+    argsNode.firstChild = &arg1; argsNode.nextSibling = NULL;
+    arg1.label.type = ID; arg1.label.value.id = "ex"; arg1.firstChild = arg1.nextSibling = NULL;
+
+    /*printf("Prog tree: \n");
+    printTree(&prog);
+
+    printf("\nCall: \n");
+    printTree(&callNode);*/
+
+    // Set up global variables
+    analyse_semantics(&prog);
+    
+    // Should return "char"
+    assert(strcmp(check_function_call(&callNode, &localDeclVars, localtypes), "char") == 0);
+    return 1;
+}
+
+
 int main(){
     int count_good = 0;
     count_good += exprTest1();
@@ -258,6 +447,9 @@ int main(){
     count_good += exprTestErr1();
     count_good += exprTestErr2();
     count_good += exprTestErr3();
-    printf("Semantic expr tests passed: %d/7\n", count_good);
+    count_good += funcsTest1();
+    count_good += funcsTest2();
+    count_good += funcsTest3();
+    printf("Semantic expr tests passed: %d/10\n", count_good);
     return 0;
 }

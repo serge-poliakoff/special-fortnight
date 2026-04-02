@@ -132,7 +132,7 @@ EnTeteFonct:
     |  VOID IDENT '(' Parametres ')'{
         Node* cur = makeNode(EnTeteFonct);
         Node* type = makeNode(Void);
-        Node* ident = makeNode(Ident);
+        Node* ident = makeNodeFull($2);
         addChild(cur, type); addChild(cur, ident); addChild(cur, $4);
         $$ = cur;
        }
