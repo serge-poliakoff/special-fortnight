@@ -7,4 +7,5 @@
     //for tests only, make static on prod.
     char* check_type(Node* Exp, Node* localVars, Node** localtypes);
     char* check_function_call(Node* funcNode, Node* localVars, Node** localtypes);
+    void analyse_variables(Node* declVars, Node** typetable);
 #endif

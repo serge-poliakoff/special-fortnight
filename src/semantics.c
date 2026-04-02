@@ -19,14 +19,6 @@ static int int_or_char(char* typeName){
     return ! (strcmp(typeName, "int") && strcmp(typeName, "char"));
 }
 
-/// @brief analyses VarDecl node of programm or function and collects all structure type
-/// declarations into a given typetable
-/// @param declVars pointer to VarDecl node
-/// @param typetable pointer to a preinitiallized type table of MAX_TYPES size (supposed initialized to all nulls)
-static void analyse_variables(Node* declVars, Node** typetable){
-
-}
- 
 /// @brief use to find a variable/field identity
 /// @param name name of variable/field to find
 /// @param place DeclVars or struct id node (childs are declarators)
@@ -97,6 +89,44 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
     
 
     return type;
+}
+
+/// @brief analyses VarDecl node of programm or function and collects all structure type
+/// declarations into a given typetable
+/// @param declVars pointer to VarDecl node
+/// @param typetable pointer to a preinitiallized type table of MAX_TYPES size (supposed initialized to all nulls)
+extern void analyse_variables(Node* declVars, Node** typetable){
+    if (!declVars) return;
+    Node* cur = declVars->firstChild;
+    int type_idx = 0;
+
+    for (; cur; cur = cur->nextSibling) {
+        if (cur->label.type == TP) {
+            // Check if type is standart or exists in typetable or glob_types
+            char* type_name = cur->label.value.id;
+            if (int_or_char(type_name)) continue;
+
+            Node* found = lookup_type_between(type_name, glob_types);
+            found = found ? found : lookup_type_between(type_name, typetable);
+
+            if (found == NULL) {
+                fprintf(stderr, "Semantic error: %s is declared with an undeclared type %s\n",
+                    cur->firstChild->label.value.id, type_name);
+                return;
+                //exit(2);
+            }
+        } else if (cur->label.type == Struct) {
+            // Add struct type to typetable
+            Node* struct_type = cur->firstChild; // Should be TP node for struct name
+            // todo: delete at he end of testing
+            if (!struct_type || struct_type->label.type != TP) {
+                fprintf(stderr, "Semantic error: malformed struct declaration\n");
+                exit(2);
+            }
+            // Add to typetable
+            typetable[type_idx++] = struct_type;
+        }
+    }
 }
 
 // Helper: check function call arguments (stub)

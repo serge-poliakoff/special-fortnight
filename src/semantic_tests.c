@@ -1,3 +1,4 @@
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -437,9 +438,72 @@ int funcsTest3(){
     return 1;
 }
 
+/// @brief Test analyse_variables: correct struct registration
+int analyseVarsTest1() {
+    // DeclVars: int a, b; char c; struct s1 { char c; }; s1 d;
+    Node declVars, intType, aId, bId, charType, cId, structNode, structType, structFieldType, structFieldId, s1VarType, s1VarId;
+    Node* typetable[3] = {NULL, NULL, NULL};
+    declVars.label.type = KEYWORD; declVars.label.value.label = DeclVars;
+    declVars.firstChild = &intType; declVars.nextSibling = NULL;
+    // int a, b;
+    intType.label.type = TP; intType.label.value.id = "int";
+    intType.firstChild = &aId; intType.nextSibling = &charType;
+    aId.label.type = ID; aId.label.value.id = "a"; aId.firstChild = NULL; aId.nextSibling = &bId;
+    bId.label.type = ID; bId.label.value.id = "b"; bId.firstChild = bId.nextSibling = NULL;
+    // char c;
+    charType.label.type = TP; charType.label.value.id = "char";
+    charType.firstChild = &cId; charType.nextSibling = &structNode;
+    cId.label.type = ID; cId.label.value.id = "c"; cId.firstChild = cId.nextSibling = NULL;
+    // struct s1 { char c; }
+    structNode.label.type = Struct; structNode.label.value.label = Struct;
+    structNode.firstChild = &structType; structNode.nextSibling = &s1VarType;
+    structType.label.type = TP; structType.label.value.id = "s1";
+    structType.firstChild = &structFieldType; structType.nextSibling = NULL;
+    structFieldType.label.type = TP; structFieldType.label.value.id = "char";
+    structFieldType.firstChild = &structFieldId; structFieldType.nextSibling = NULL;
+    structFieldId.label.type = ID; structFieldId.label.value.id = "c"; structFieldId.firstChild = structFieldId.nextSibling = NULL;
+    // s1 d;
+    s1VarType.label.type = TP; s1VarType.label.value.id = "s1";
+    s1VarType.firstChild = &s1VarId; s1VarType.nextSibling = NULL;
+    s1VarId.label.type = ID; s1VarId.label.value.id = "d"; s1VarId.firstChild = s1VarId.nextSibling = NULL;
+    // Run analyse_variables
+    analyse_variables(&declVars, typetable);
+    // Should have structType in typetable[0]
+    assert(typetable[0] == &structType);
+    assert(typetable[1] == NULL);
+    return 1;
+}
+
+/// @brief Test analyse_variables: error on use-before-declare
+int analyseVarsTest2() {
+    // DeclVars: s1 d; struct s1 { char c; };
+    Node declVars, s1VarType, s1VarId, structNode, structType, structFieldType, structFieldId;
+    Node* typetable[3] = {NULL, NULL, NULL};
+    declVars.label.type = KEYWORD; declVars.label.value.label = DeclVars;
+    declVars.firstChild = &s1VarType; declVars.nextSibling = NULL;
+    // s1 d;
+    s1VarType.label.type = TP; s1VarType.label.value.id = "s1";
+    s1VarType.firstChild = &s1VarId; s1VarType.nextSibling = &structNode;
+    s1VarId.label.type = ID; s1VarId.label.value.id = "d"; s1VarId.firstChild = s1VarId.nextSibling = NULL;
+    // struct s1 { char c; }
+    structNode.label.type = Struct; structNode.label.value.label = Struct;
+    structNode.firstChild = &structType; structNode.nextSibling = NULL;
+    structType.label.type = TP; structType.label.value.id = "s1";
+    structType.firstChild = &structFieldType; structType.nextSibling = NULL;
+    structFieldType.label.type = TP; structFieldType.label.value.id = "char";
+    structFieldType.firstChild = &structFieldId; structFieldType.nextSibling = NULL;
+    structFieldId.label.type = ID; structFieldId.label.value.id = "c"; structFieldId.firstChild = structFieldId.nextSibling = NULL;
+    // Run analyse_variables, should exit(2) or not add structType
+    analyse_variables(&declVars, typetable);
+    assert(typetable[0] == NULL);
+    assert(typetable[1] == NULL);
+    return 1;
+}
 
 int main(){
     int count_good = 0;
+    count_good += analyseVarsTest1();
+    count_good += analyseVarsTest2();
     count_good += exprTest1();
     count_good += exprTest2();
     count_good += exprTest3();
@@ -450,6 +514,6 @@ int main(){
     count_good += funcsTest1();
     count_good += funcsTest2();
     count_good += funcsTest3();
-    printf("Semantic expr tests passed: %d/10\n", count_good);
+    printf("Semantic expr tests passed: %d/12\n", count_good);
     return 0;
 }
