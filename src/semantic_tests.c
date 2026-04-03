@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -455,7 +454,7 @@ int analyseVarsTest1() {
     charType.firstChild = &cId; charType.nextSibling = &structNode;
     cId.label.type = ID; cId.label.value.id = "c"; cId.firstChild = cId.nextSibling = NULL;
     // struct s1 { char c; }
-    structNode.label.type = Struct; structNode.label.value.label = Struct;
+    structNode.label.type = KEYWORD; structNode.label.value.label = Struct;
     structNode.firstChild = &structType; structNode.nextSibling = &s1VarType;
     structType.label.type = TP; structType.label.value.id = "s1";
     structType.firstChild = &structFieldType; structType.nextSibling = NULL;
@@ -467,6 +466,8 @@ int analyseVarsTest1() {
     s1VarType.firstChild = &s1VarId; s1VarType.nextSibling = NULL;
     s1VarId.label.type = ID; s1VarId.label.value.id = "d"; s1VarId.firstChild = s1VarId.nextSibling = NULL;
     // Run analyse_variables
+    
+
     analyse_variables(&declVars, typetable);
     // Should have structType in typetable[0]
     assert(typetable[0] == &structType);
@@ -486,7 +487,7 @@ int analyseVarsTest2() {
     s1VarType.firstChild = &s1VarId; s1VarType.nextSibling = &structNode;
     s1VarId.label.type = ID; s1VarId.label.value.id = "d"; s1VarId.firstChild = s1VarId.nextSibling = NULL;
     // struct s1 { char c; }
-    structNode.label.type = Struct; structNode.label.value.label = Struct;
+    structNode.label.type = KEYWORD; structNode.label.value.label = Struct;
     structNode.firstChild = &structType; structNode.nextSibling = NULL;
     structType.label.type = TP; structType.label.value.id = "s1";
     structType.firstChild = &structFieldType; structType.nextSibling = NULL;
@@ -500,7 +501,113 @@ int analyseVarsTest2() {
     return 1;
 }
 
+/// @brief validates signature of function with struct return type and void parameters
+/// @return 1 if test passed
+int analyseFuncSignatureTest1(){
+    // struct s1 { char c; }
+    Node structure, structType, structFieldType, structFieldId;
+    structure.label.type = KEYWORD; structure.label.value.label = Struct;
+    structure.firstChild = &structType; structure.nextSibling = NULL;
+    structType.label.type = TP; structType.label.value.id = "s1";
+    structType.firstChild = &structFieldType; structType.nextSibling = NULL;
+    structFieldType.label.type = TP; structFieldType.label.value.id = "char";
+    structFieldType.firstChild = &structFieldId; structFieldType.nextSibling = NULL;
+    structFieldId.label.type = ID; structFieldId.label.value.id = "c"; structFieldId.firstChild = structFieldId.nextSibling = NULL;
+    // Function: s1 foo(void) {}
+    Node func, header, retType, ident, params, voidParam, body, declVarsL, firstIntsr;
+    func.label.type = KEYWORD; func.label.value.label = DeclFonct;
+    func.firstChild = &header; func.nextSibling = NULL;
+    header.label.type = KEYWORD; header.label.value.label = EnTeteFonct;
+    header.firstChild = &retType; header.nextSibling = &body;
+    retType.label.type = TP; retType.label.value.id = "s1";
+    retType.firstChild = NULL; retType.nextSibling = &ident;
+    ident.label.type = ID; ident.label.value.id = "foo";
+    ident.firstChild = NULL; ident.nextSibling = &params;
+    params.label.type = KEYWORD; params.label.value.label = Parametres;
+    params.firstChild = &voidParam; params.nextSibling = NULL;
+    voidParam.label.type = KEYWORD; voidParam.label.value.label = Void; voidParam.firstChild = voidParam.nextSibling = NULL;
+    body.label.type = KEYWORD; body.label.value.label = Corps;
+    body.firstChild = &declVarsL; body.nextSibling = NULL;
+
+    declVarsL.label.type = KEYWORD; declVarsL.label.value.label = DeclVars;
+    declVarsL.firstChild = NULL; declVarsL.nextSibling = &firstIntsr;
+
+    firstIntsr.label.type = KEYWORD; firstIntsr.label.value.label = SuiteInstr;
+    firstIntsr.firstChild = firstIntsr.nextSibling = NULL;
+
+    // Add struct to glob_types
+    Node prog, declVars, declFoncts, declFonct;
+    prog.label.type = KEYWORD; prog.label.value.label = Prog;
+    prog.firstChild = &declVars; prog.nextSibling = NULL;
+    declVars.label.type = KEYWORD; declVars.label.value.label = DeclVars;
+    declVars.firstChild = &structure; declVars.nextSibling = &declFoncts;
+    declFoncts.label.type = KEYWORD; declFoncts.label.value.label = DeclFoncts;
+    declFoncts.firstChild = &declFonct; declFoncts.nextSibling = NULL;
+    declFonct.label.type = KEYWORD; declFonct.label.value.label = DeclFonct;
+    declFonct.firstChild = declFonct.nextSibling = NULL;
+    
+    analyse_semantics(&prog);
+
+    analyse_func(&func);
+    return 1;
+}
+
+/// @brief validates signature of function with void return type, int and struct parameters
+/// @return 1 if test passed
+int analyseFuncSignatureTest2(){
+    // struct s2 { int x; }
+    Node structure, structType, structFieldType, structFieldId;
+    structure.label.type = KEYWORD; structure.label.value.label = Struct;
+    structure.firstChild = &structType; structure.nextSibling = NULL;
+    structType.label.type = TP; structType.label.value.id = "s2";
+    structType.firstChild = &structFieldType; structType.nextSibling = NULL;
+    structFieldType.label.type = TP; structFieldType.label.value.id = "int";
+    structFieldType.firstChild = &structFieldId; structFieldType.nextSibling = NULL;
+    structFieldId.label.type = ID; structFieldId.label.value.id = "x"; structFieldId.firstChild = structFieldId.nextSibling = NULL;
+    // Function: void bar(int a, s2 b) {}
+    Node func, header, retType, ident, params, param1, param1id, param2, param2id, body, declVarsL, firstIntsr;
+    func.label.type = KEYWORD; func.label.value.label = DeclFonct;
+    func.firstChild = &header; func.nextSibling = NULL;
+    header.label.type = KEYWORD; header.label.value.label = EnTeteFonct;
+    header.firstChild = &retType; header.nextSibling = &body;
+    retType.label.type = KEYWORD; retType.label.value.label = Void; retType.firstChild = retType.nextSibling = NULL;
+    retType.nextSibling = &ident;
+    ident.label.type = ID; ident.label.value.id = "bar"; ident.firstChild = ident.nextSibling = NULL;
+    ident.nextSibling = &params;
+    params.label.type = KEYWORD; params.label.value.label = Parametres;
+    params.firstChild = &param1; params.nextSibling = NULL;
+    param1.label.type = TP; param1.label.value.id = "int"; param1.firstChild = &param1id; param1.nextSibling = &param2;
+    param1id.label.type = ID; param1id.label.value.id = "a"; param1id.firstChild = param1id.nextSibling = NULL;
+    param2.label.type = TP; param2.label.value.id = "s2"; param2.firstChild = &param2id; param2.nextSibling = NULL;
+    param2id.label.type = ID; param2id.label.value.id = "b"; param2id.firstChild = param2id.nextSibling = NULL;
+    body.label.type = KEYWORD; body.label.value.label = Corps;
+    body.firstChild = &declVarsL; body.nextSibling = NULL;
+
+    declVarsL.label.type = KEYWORD; declVarsL.label.value.label = DeclVars;
+    declVarsL.firstChild = NULL; declVarsL.nextSibling = &firstIntsr;
+
+    firstIntsr.label.type = KEYWORD; firstIntsr.label.value.label = SuiteInstr;
+    firstIntsr.firstChild = firstIntsr.nextSibling = NULL;
+    // Add struct to glob_types
+    Node prog, declVars, declFoncts, declFonct;
+    prog.label.type = KEYWORD; prog.label.value.label = Prog;
+    prog.firstChild = &declVars; prog.nextSibling = NULL;
+    declVars.label.type = KEYWORD; declVars.label.value.label = DeclVars;
+    declVars.firstChild = &structure; declVars.nextSibling = &declFoncts;
+    declFoncts.label.type = KEYWORD; declFoncts.label.value.label = DeclFoncts;
+    declFoncts.firstChild = &declFonct; declFoncts.nextSibling = NULL;
+    declFonct.label.type = KEYWORD; declFonct.label.value.label = DeclFonct;
+    declFonct.firstChild = declFonct.nextSibling = NULL;
+    
+    analyse_semantics(&prog);
+    
+    analyse_func(&func);
+    return 1;
+}
+
 int main(){
+    //todo: check why no error logs on function tests
+    //todo: add linenum to each node in tree.c and log error with linenum
     int count_good = 0;
     count_good += analyseVarsTest1();
     count_good += analyseVarsTest2();
@@ -514,6 +621,8 @@ int main(){
     count_good += funcsTest1();
     count_good += funcsTest2();
     count_good += funcsTest3();
-    printf("Semantic expr tests passed: %d/12\n", count_good);
+    count_good += analyseFuncSignatureTest1();
+    count_good += analyseFuncSignatureTest2();
+    printf("Semantic expr tests passed: %d/14\n", count_good);
     return 0;
 }

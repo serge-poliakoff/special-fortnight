@@ -115,14 +115,9 @@ extern void analyse_variables(Node* declVars, Node** typetable){
                 return;
                 //exit(2);
             }
-        } else if (cur->label.type == Struct) {
+        } else if (cur->label.type == KEYWORD && cur->label.value.label == Struct) {
             // Add struct type to typetable
             Node* struct_type = cur->firstChild; // Should be TP node for struct name
-            // todo: delete at he end of testing
-            if (!struct_type || struct_type->label.type != TP) {
-                fprintf(stderr, "Semantic error: malformed struct declaration\n");
-                exit(2);
-            }
             // Add to typetable
             typetable[type_idx++] = struct_type;
         }
@@ -303,8 +298,45 @@ static void analyseInst(Node* instr, Node* localVars, Node** localtypes){
 
 /// @brief provides sematic analysis for a given function
 /// @param func pointer to DeclFonct node of the function to analyse
-static void analyse_func(Node* func){
+extern void analyse_func(Node* func){
     assert(func != NULL);
+    //printTree(func);
+    // Analyse function signature: return type and parameter types
+    Node* header = func->firstChild; // EnTeteFonct
+    Node* returnTypeNode = header->firstChild;
+    Node* identNode = returnTypeNode->nextSibling;
+    // Check return type - the only KEYWORD value is Void and do not need to be checked
+    if (returnTypeNode->label.type == TP) {
+        char* retType = returnTypeNode->label.value.id;
+        if (!int_or_char(retType)) {
+            Node* found = lookup_type_between(retType, glob_types);
+            if (!found) {
+                fprintf(stderr, "Semantic error: in function %s return type '%s' is undeclared\n",
+                    identNode->label.value.id, retType);
+                //exit(2);
+                return;
+            }
+        }
+    }
+    // Check parameter types
+    Node* paramsNode = identNode->nextSibling;
+    Node* param = paramsNode->firstChild;
+    while (param) {
+        // again Void param can be not checked
+        if (param->label.type == TP) {
+            char* paramType = param->label.value.id;
+            if (!int_or_char(paramType)) {
+                Node* found = lookup_type_between(paramType, glob_types);
+                if (!found) {
+                    fprintf(stderr, "Semantic error: in function %s parameter type '%s' is undeclared\n",
+                        identNode->label.value.id, paramType);
+                    //exit(2);
+                    return;
+                }
+            }
+        }
+        param = param->nextSibling;
+    }
 
     Node* local_vars = func->firstChild->nextSibling->firstChild;
     Node* localtypes[MAX_TYPES];
@@ -314,7 +346,7 @@ static void analyse_func(Node* func){
     Node* curInstr = local_vars -> nextSibling -> firstChild;
     while (curInstr != NULL)
     {
-        analyse_func(curInstr);
+        analyseInst(curInstr, local_vars, localtypes);
         curInstr = curInstr ->nextSibling;
     }
 }
@@ -324,12 +356,13 @@ static void analyse_func(Node* func){
 /// @param tree pointer to the root of programm tree (Prog)
 extern void analyse_semantics(Node* tree){
     assert(tree != NULL);
-
+    
     glob_vars = tree->firstChild;
     functs = tree->firstChild->nextSibling;
     for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;
     analyse_variables(glob_vars, glob_types);
 
+    //for(int i = 0; glob_types[i] != NULL; i++) printTree(glob_types[i]);
     /*printf("Semantics : printing functs tree \n");
     printTree(functs);
     printf("\n");*/
