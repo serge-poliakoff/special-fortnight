@@ -9,7 +9,7 @@ int return_int(void){
 void do_nothing(void){ }
 
 char with_params(int a, char b){
-    char c;
+    char c, v;
     c = a + v;
     return c;
 }

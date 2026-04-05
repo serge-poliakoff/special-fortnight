@@ -78,6 +78,8 @@ typedef struct Node {
   int lineno;
 } Node;
 
+char* strdup(const char* source);
+
 /// @brief makes KEYWORD tree node from just a label
 /// @param label - the keyword of tcp language
 /// @return pointer to created node
@@ -89,11 +91,14 @@ void addSibling(Node *node, Node *sibling);
 
 void addChild(Node *parent, Node *child);
 
+Node* copyTree(Node* tree);
+
 void deleteTree(Node*node);
 
 void printTree(Node *node);
 
 void printNode(Node *node);
+
 
 #define FIRSTCHILD(node) node->firstChild
 #define SECONDCHILD(node) node->firstChild->nextSibling

@@ -104,6 +104,7 @@ extern void analyse_variables(Node* declVars, Node** typetable){
         if (cur->label.type == TP) {
             // Check if type is standart or exists in typetable or glob_types
             char* type_name = cur->label.value.id;
+            printf("Variable %s with type %s found\n", type_name, cur->firstChild->label.value.id);
             if (int_or_char(type_name)) continue;
 
             Node* found = lookup_type_between(type_name, glob_types);
@@ -120,6 +121,8 @@ extern void analyse_variables(Node* declVars, Node** typetable){
             Node* struct_type = cur->firstChild; // Should be TP node for struct name
             // Add to typetable
             typetable[type_idx++] = struct_type;
+            printf("Structure %s declaration found\n", struct_type->label.value.id);
+            analyse_variables(struct_type, typetable);
         }
     }
 }
@@ -292,8 +295,147 @@ extern char* check_type(Node* Exp, Node* localVars, Node** localtypes){
 /// @param instr pointer to the instruction node
 /// @param localVars pointer to DeclVars of a current function
 /// @param localtypes a null-terminated-array of locally declared structure types (must be non-null)
-static void analyseInst(Node* instr, Node* localVars, Node** localtypes){
+/// @param returnType return type of current function; NULL if void
+static void analyseInst(Node* instr, Node* localVars, Node** localtypes, char* returnType){
+    if (!instr) return;
+    // Handle keyword instructions first
+    if (instr->firstChild && instr->firstChild->label.type == KEYWORD) {
+        Node* kw = instr->firstChild;
+        switch (kw->label.value.label) {
+            case Return: {
+                Node* retExpr = kw->firstChild;
+                if (returnType == NULL) {
+                    // void function: should not return a value
+                    if (retExpr) {
+                        fprintf(stderr, "Semantic error: void function should not return a value\n");
+                        exit(2);
+                    }
+                } else {
+                    if (!retExpr) {
+                        fprintf(stderr, "Semantic error: non-void function must return a value\n");
+                        exit(2);
+                    }
+                    char* exprType = check_type(retExpr, localVars, localtypes);
+                    // todo: remove in prod: check_type must throw itself if undeclared type
+                    if (!exprType) {
+                        fprintf(stderr, "Semantic error: cannot deduce return expression type\n");
+                        exit(2);
+                    }
+                    if (strcmp(returnType, "int") == 0) {
+                        if (!int_or_char(exprType)) {
+                            fprintf(stderr, "Semantic error: return type must be int or char, got %s\n", exprType);
+                            exit(2);
+                        }
+                    } else if (strcmp(returnType, "char") == 0) {
+                        if (strcmp(exprType, "char") == 0) {
+                            // ok
+                        } else if (strcmp(exprType, "int") == 0) {
+                            fprintf(stderr, "Warning: returning int from char function\n");
+                        } else {
+                            fprintf(stderr, "Semantic error: return type must be char, got %s\n", exprType);
+                            exit(2);
+                        }
+                    } else {
+                        if (strcmp(exprType, returnType) != 0) {
+                            fprintf(stderr, "Semantic error: return type must be %s, got %s\n", returnType, exprType);
+                            exit(2);
+                        }
+                    }
+                }
+                break;
+            }
+            case If: {
+                Node* cond = kw->firstChild;
+                Node* thenInstr = cond ? cond->nextSibling : NULL;
 
+                char* condType = check_type(cond, localVars, localtypes);
+                if (!int_or_char(condType)) {
+                    fprintf(stderr, "Semantic error: if condition must be int or char, got %s\n", condType);
+                    exit(2);
+                }
+                if (thenInstr)
+                    analyseInst(thenInstr, localVars, localtypes, returnType);
+                // Check for else block
+                Node* elseNode = kw->nextSibling;
+                if (elseNode && elseNode->label.type == KEYWORD && elseNode->label.value.label == Else) {
+                    Node* elseInstr = elseNode->firstChild;
+                    if (elseInstr) analyseInst(elseInstr, localVars, localtypes, returnType);
+                }
+                break;
+            }
+            case While: {
+                Node* cond = kw->nextSibling;
+                Node* bodyInstr = cond ? cond->nextSibling : NULL;
+                if (!cond) {
+                    fprintf(stderr, "Semantic error: malformed while instruction\n");
+                    exit(2);
+                }
+                char* condType = check_type(cond, localVars, localtypes);
+                if (!int_or_char(condType)) {
+                    fprintf(stderr, "Semantic error: while condition must be int or char, got %s\n", condType);
+                    exit(2);
+                }
+                if (bodyInstr) analyseInst(bodyInstr, localVars, localtypes, returnType);
+                break;
+            }
+            case SuiteInstr:
+                Node* cur = kw -> firstChild;
+                while (cur)
+                {
+                    analyseInst(cur, localVars, localtypes, returnType);
+                    cur = cur -> nextSibling;
+                }
+                break;
+            default:
+                // todo: implement a funciton in tree.c to print a keyword
+                fprintf(stderr, "Sematic analyser error: unknown keyword %d", kw->label.value.label);
+                exit(2);
+        }
+        return;
+    }
+    // Function call: single child
+    if (instr->firstChild && instr->firstChild->nextSibling == NULL) {
+        Node* callNode = instr->firstChild;
+        // Check if this is a function call (has Arguments child)
+        check_function_call(callNode, localVars, localtypes);
+        return;
+    }
+    // Variable assignment: two children
+    if (instr->firstChild && instr->firstChild->nextSibling) {
+        Node* lhs = instr->firstChild;
+        Node* rhs = instr->firstChild->nextSibling;
+        char* lhsType = check_type(lhs, localVars, localtypes);
+        char* rhsType = check_type(rhs, localVars, localtypes);
+        // todo: remove in prod. - checkk_type must throw itself if type cannot be deduced
+        if (!lhsType || !rhsType) {
+            fprintf(stderr, "Semantic error: cannot deduce type in assignment\n");
+            exit(2);
+        }
+        if (strcmp(lhsType, "int") == 0) {
+            if (!int_or_char(rhsType)) {
+                fprintf(stderr, "Semantic error: cannot assign %s to int variable\n", rhsType);
+                exit(2);
+            }
+        } else if (strcmp(lhsType, "char") == 0) {
+            if (strcmp(rhsType, "char") == 0) {
+                // ok
+            } else if (strcmp(rhsType, "int") == 0) {
+                fprintf(stderr, "Warning: assigning int to char variable\n");
+            } else {
+                fprintf(stderr, "Semantic error: cannot assign %s to char variable\n", rhsType);
+                exit(2);
+            }
+        } else {
+            // struct or other type
+            if (strcmp(lhsType, rhsType) != 0) {
+                fprintf(stderr, "Semantic error: cannot assign %s to %s variable\n", rhsType, lhsType);
+                exit(2);
+            }
+        }
+        return;
+    }
+    fprintf(stderr, "Semantic analyser error: cannot analyse instruction");
+    exit(2);
 }
 
 /// @brief provides sematic analysis for a given function
@@ -305,6 +447,9 @@ extern void analyse_func(Node* func){
     Node* header = func->firstChild; // EnTeteFonct
     Node* returnTypeNode = header->firstChild;
     Node* identNode = returnTypeNode->nextSibling;
+    
+    printf("analysing function %s\n", identNode->label.value.id);
+
     // Check return type - the only KEYWORD value is Void and do not need to be checked
     if (returnTypeNode->label.type == TP) {
         char* retType = returnTypeNode->label.value.id;
@@ -340,15 +485,30 @@ extern void analyse_func(Node* func){
 
     Node* local_vars = func->firstChild->nextSibling->firstChild;
     Node* localtypes[MAX_TYPES];
-    for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;
+    for(int i = 0; i < MAX_TYPES; i++) localtypes[i] = NULL;
     analyse_variables(local_vars, localtypes);
+
+    //printf("Copying parameters to local vars: ");
+    //printTree(paramsNode);   
+
+    param = paramsNode->firstChild;
+    while (param)
+    {
+        if (param->label.type == TP){
+            addChild(local_vars, copyTree(param));
+        }
+        param = param -> nextSibling;
+    }
+    
+    printf("analysing function %s: finished analysing variables\n", identNode->label.value.id);
 
     Node* curInstr = local_vars -> nextSibling -> firstChild;
     while (curInstr != NULL)
     {
-        analyseInst(curInstr, local_vars, localtypes);
+        analyseInst(curInstr, local_vars, localtypes, returnTypeNode->label.value.id);
         curInstr = curInstr ->nextSibling;
     }
+    printf("function %s valid\n", identNode->label.value.id);
 }
 
 /// @brief provides a semantic analyse of the program
@@ -366,15 +526,16 @@ extern void analyse_semantics(Node* tree){
     /*printf("Semantics : printing functs tree \n");
     printTree(functs);
     printf("\n");*/
-    /* check for "int main" is present in the tree, stop if not
+    /* check for "int main" is present in the tree, stop if not*/
 
     Node* cur_func = functs->firstChild; //current "DeclFonct" node
     while (cur_func != NULL)
     {
         analyse_func(cur_func);
-        cur_func = cur_func ->nextSibling;
-    }*/
-    
+        cur_func = cur_func -> nextSibling;
+    }
+
+    printf("semantic analysis finished\n");
 
     return;
 }

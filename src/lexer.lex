@@ -8,12 +8,7 @@ int fileno(FILE *stream);
 
 /*struct {id} {return STRUCT}*/
 
-char* strdup(const char* source){
-	char *res = (char*)malloc(strlen(source) + 1);
-	strcpy(res, source);
-	res[strlen(source)] = '\0';
-	return res;
-}
+extern char* strdup(const char* source);
 
 %}
 

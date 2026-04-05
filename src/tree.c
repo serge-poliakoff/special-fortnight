@@ -1,13 +1,21 @@
 /* tree.c */
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
-#include "tree.h"
+#include <tree.h>
 //extern int linenum;       /* from lexer */
 
 static const char *StringFromLabel[] = {
   FOREACH_TOKEN(GENERATE_STRING)
 };
+
+extern char* strdup(const char* source){
+	char *res = (char*)malloc(strlen(source) + 1);
+	strcpy(res, source);
+	res[strlen(source)] = '\0';
+	return res;
+}
 
 Node *makeNode(label_t label) {
   Node *node = malloc(sizeof(Node));
@@ -51,6 +59,28 @@ void addChild(Node *parent, Node *child) {
   else {
     addSibling(parent->firstChild, child);
   }
+}
+
+/// @brief copies a node of tree and all its descendants
+/// @param tree pointer to a node to copy
+/// @return a deep copy of a gicen node with all its descendants
+extern Node* copyTree(Node* tree){
+  if (!tree) return NULL;
+  Node* res;
+  if (tree -> label.type == KEYWORD || tree -> label.type == INT || tree -> label.type == CHAR){
+    res = makeNodeFull(tree -> label);
+  }else{
+    char* id = strdup(tree -> label.value.id);
+    tree_label tl; tl.type = tree -> label.type; tl.value.id = id;
+    res = makeNodeFull(tl);
+  }
+  Node* child = tree -> firstChild;
+  while (child)
+  {
+    addChild(res, copyTree(child));
+    child = child -> nextSibling;
+  }
+  return res;
 }
 
 void deleteTree(Node *node) {

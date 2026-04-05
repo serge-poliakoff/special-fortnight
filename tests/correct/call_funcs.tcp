@@ -12,6 +12,6 @@ int main(void){
     beta = 9;
 
     res = a(beta - (alpha + a(beta, alpha)), beta % alpha);
-    res = b(b(alpha) * res, res == alpha || res == beta);
+    res = b(b(alpha, 2) * res, res == alpha || res == beta);
     return 144;
 }

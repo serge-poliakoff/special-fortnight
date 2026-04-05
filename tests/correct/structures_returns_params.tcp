@@ -20,7 +20,7 @@ struct rect greater(struct rect r1, struct rect r2){
     s2 = surface(r2);
 
     if (s1 > s2)
-        return s1;
-    return s2;
+        return r1;
+    return r2;
 }
 

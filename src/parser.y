@@ -205,33 +205,33 @@ Instr:
     |  IF '(' Exp ')' Instr {
         Node* cur = makeNode(Instr);
         Node* ifT = makeNode(If);
-        addChild(cur, ifT); addChild(cur, $3); addChild(cur, $5);
+        addChild(cur, ifT); addChild(ifT, $3); addChild(ifT, $5);
         $$ = cur;
     }
     |  IF '(' Exp ')' Instr ELSE Instr {
         Node* cur = makeNode(Instr);
         Node* ifT = makeNode(If);
         Node* elseT = makeNode(Else);
-        addChild(cur, ifT); addChild(cur, $3); addChild(cur, $5);
-        addChild(cur, elseT); addChild(cur, $7);
+        addChild(cur, ifT); addChild(ifT, $3); addChild(ifT, $5);
+        addChild(cur, elseT); addChild(elseT, $7);
         $$ = cur;
     }
     |  WHILE '(' Exp ')' Instr {
         Node* cur = makeNode(Instr);
         Node* whileT = makeNode(While);
-        addChild(cur, whileT); addChild(cur, $3); addChild(cur, $5);
+        addChild(cur, whileT); addChild(whileT, $3); addChild(whileT, $5);
         $$ = cur;
     }
     |  IDENT '(' Arguments  ')' ';' {
         Node* cur = makeNode(Instr);
-        Node* func = makeNode(Ident);
-        addChild(cur, func); addChild(cur, $3);
+        Node* func = makeNodeFull($1);
+        addChild(cur, func); addChild(func, $3);
         $$ = cur;
     }
     |  RETURN Exp ';' {
         Node* cur = makeNode(Instr);
         Node* ret = makeNode(Return);
-        addChild(cur, ret); addChild(cur, $2);
+        addChild(cur, ret); addChild(ret, $2);
         $$ = cur;
        }
     |  RETURN ';' {
