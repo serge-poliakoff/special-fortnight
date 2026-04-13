@@ -5,6 +5,7 @@
 
 #include <tree.h>
 #include <semantics.h>
+#include <compiler.h>
 extern int yylex();
 extern int yyparse();
 extern FILE* yyin;
@@ -346,7 +347,11 @@ int main(int argc, char **argv) {
 	    printTree(prog);
     }
     analyse_semantics(prog);
+
+    compile(prog);
+
 	deleteTree(prog);
 	printf("Parsed successfully\n");
+    
 	return 0;
 }

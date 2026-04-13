@@ -6,6 +6,13 @@
 #include <tree.h>
 #define MAX_TYPES 100
 
+// todo: supress logs
+// todo: add lineno to each tree node (easy todo just in tree.c as linenum is extern)
+//          and add it to each error log (lots here, just one on grammar in yyerror())
+// todo: uncomment all exits and make all semantic functions static again
+// todo: rearange adding parameters and analysing localvars in analyse_func
+
+
 Node* glob_vars;    //pointer to program's global VarDecl
 Node* glob_types[MAX_TYPES];    //global custom types (structs)
 Node* functs;   //pointer to DeclFoncts node of tree
@@ -535,7 +542,7 @@ extern void analyse_semantics(Node* tree){
         cur_func = cur_func -> nextSibling;
     }
 
-    printf("semantic analysis finished\n");
+    //printf("semantic analysis finished\n");
 
     return;
 }
