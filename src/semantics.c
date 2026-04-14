@@ -4,6 +4,7 @@
 #include <assert.h>
 
 #include <tree.h>
+#include <semantics.h>
 #define MAX_TYPES 100
 
 // todo: supress logs
@@ -16,6 +17,9 @@
 Node* glob_vars;    //pointer to program's global VarDecl
 Node* glob_types[MAX_TYPES];    //global custom types (structs)
 Node* functs;   //pointer to DeclFoncts node of tree
+
+static char* cur_func_name;
+static int have_main_func;
 
 extern char* check_type(Node* Exp, Node* localVars, Node** localtypes);
 
@@ -107,21 +111,75 @@ extern void analyse_variables(Node* declVars, Node** typetable){
     Node* cur = declVars->firstChild;
     int type_idx = 0;
 
+    // todo: rethink function so it writes vartables for functions in hash
+    // and those for structures in a separate typetables
+
+    int vartab_size = 10, vartab_ind = 0, frame_offset = 0;
+    VarNode* vartable = (VarNode*)malloc(sizeof(VarNode) * vartab_size);
+
     for (; cur; cur = cur->nextSibling) {
         if (cur->label.type == TP) {
-            // Check if type is standart or exists in typetable or glob_types
+            // deduce variable(s) type and size
             char* type_name = cur->label.value.id;
-            printf("Variable %s with type %s found\n", type_name, cur->firstChild->label.value.id);
-            if (int_or_char(type_name)) continue;
+            size_t type_size;
+            if (strcmp(type_name, "int") == 0){
+                type_size = 4;
+            }else if (strcmp(type_name, "char") == 0){
+                type_size = 1;
+            }else{
+                // looking for a struct type of variable(s)
+                Node* found = lookup_type_between(type_name, glob_types);
+                found = found ? found : lookup_type_between(type_name, typetable);
 
-            Node* found = lookup_type_between(type_name, glob_types);
-            found = found ? found : lookup_type_between(type_name, typetable);
+                if (found == NULL) {
+                    fprintf(stderr, "Semantic error: %s is declared with an undeclared type %s\n",
+                        cur->firstChild->label.value.id, type_name);
+                    exit(2);
+                }
+                // todo: get type's size from typetables
+                type_size = 8;
+            }
+            // todo: add all variables (children of cur to a table, at the end save it
+            //  to the hash table of vartables)
+            // todo: separate this logic into vartables module
+            for (Node* cur_id_node = cur->firstChild; cur_id_node; cur_id_node = cur_id_node->nextSibling){
+                char* varname = cur_id_node->label.value.id;
+                // check repeating identifier error
+                for(int i = 0; i < vartab_ind; i++){
+                    if (strcmp(varname, vartable[i].id) == 0){
+                        fprintf(stderr, "Sematic error: double identifier %s\n", varname);
+                        exit(2);
+                    }
+                }
+                // add variable to var_table
+                vartable[vartab_ind].id = strdup(varname);
+                if (strcmp(cur_func_name,"global") == 0){
+                    // global variable -> static allocation
+                    vartable[vartab_ind].addr = strdup(varname);
+                }else{
+                    // local variable -> offset from rbp
+                    // todo: union of char* and size_t for addr ?
+                    
+                    //vartable[vartab_ind].addr = "rbp" - frame_offset;
+                    frame_offset += type_size;
+                }
+                vartable[vartab_ind].size = type_size;
+                // get type's data from corresponding typetable
+                // todo: typetables aren't needed in compilation, as the pointer to their data
+                //  is effectively inside the fields, however, their data must be stored
+                //  until the end of the process, so their ressources must be freed at the las moment
+                //vartable[vartab_ind].fields = *found_type;
 
-            if (found == NULL) {
-                fprintf(stderr, "Semantic error: %s is declared with an undeclared type %s\n",
-                    cur->firstChild->label.value.id, type_name);
-                return;
-                //exit(2);
+                //increase table capacity if needed
+                vartab_ind++;
+                if (vartab_ind == vartab_size){
+                    vartab_size = vartab_size * 2;
+                    vartable = (VarNode*)realloc(vartable, sizeof(VarNode) * vartab_size);
+                    if (vartable == NULL){
+                        fprintf(stderr, "Sematic analysis: Allocation fault\n");
+                        exit(EXIT_FAILURE);
+                    }
+                }
             }
         } else if (cur->label.type == KEYWORD && cur->label.value.label == Struct) {
             // Add struct type to typetable
@@ -132,6 +190,17 @@ extern void analyse_variables(Node* declVars, Node** typetable){
             analyse_variables(struct_type, typetable);
         }
     }
+
+
+    // todo: think what better suits for a vartable size indicator
+    // maybe just field "length" in structure returned by a hash function ?
+    for (int i = 0 ; i < vartab_ind; i++){
+        printf("%s vartable: %s - %s, %lldb\n",
+            cur_func_name,
+            vartable[i].id, vartable[i].addr, vartable[i].size);
+    }
+    printf("\n");
+    free(vartable);
 }
 
 // Helper: check function call arguments (stub)
@@ -449,13 +518,16 @@ static void analyseInst(Node* instr, Node* localVars, Node** localtypes, char* r
 /// @param func pointer to DeclFonct node of the function to analyse
 extern void analyse_func(Node* func){
     assert(func != NULL);
+    
     //printTree(func);
     // Analyse function signature: return type and parameter types
     Node* header = func->firstChild; // EnTeteFonct
     Node* returnTypeNode = header->firstChild;
     Node* identNode = returnTypeNode->nextSibling;
     
-    printf("analysing function %s\n", identNode->label.value.id);
+    //printf("analysing function %s\n", identNode->label.value.id);
+    cur_func_name = identNode->label.value.id;
+    
 
     // Check return type - the only KEYWORD value is Void and do not need to be checked
     if (returnTypeNode->label.type == TP) {
@@ -473,6 +545,7 @@ extern void analyse_func(Node* func){
     // Check parameter types
     Node* paramsNode = identNode->nextSibling;
     Node* param = paramsNode->firstChild;
+    int p_count = 0;
     while (param) {
         // again Void param can be not checked
         if (param->label.type == TP) {
@@ -486,8 +559,17 @@ extern void analyse_func(Node* func){
                     return;
                 }
             }
+            p_count ++;
         }
         param = param->nextSibling;
+    }
+
+    if (strcmp(cur_func_name, "main") == 0){
+        if (p_count != 0 || strcmp(returnTypeNode->label.value.id, "int") != 0){
+            fprintf(stderr, "Semantic error: function main must return int and have no arguments\n");
+            exit(2);
+        }
+        have_main_func = 1;
     }
 
     Node* local_vars = func->firstChild->nextSibling->firstChild;
@@ -497,7 +579,7 @@ extern void analyse_func(Node* func){
 
     //printf("Copying parameters to local vars: ");
     //printTree(paramsNode);   
-
+    //todo: copy before analysing variables (so the stack keeps aligned with local vars then)
     param = paramsNode->firstChild;
     while (param)
     {
@@ -524,6 +606,9 @@ extern void analyse_func(Node* func){
 extern void analyse_semantics(Node* tree){
     assert(tree != NULL);
     
+    cur_func_name = "global";
+
+    // todo: verify there's now two variables with the same name
     glob_vars = tree->firstChild;
     functs = tree->firstChild->nextSibling;
     for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;
@@ -542,6 +627,10 @@ extern void analyse_semantics(Node* tree){
         cur_func = cur_func -> nextSibling;
     }
 
+    if (have_main_func == 0){
+        fprintf(stderr, "Semantic error: no function main was found in programm\n");
+        exit(2);
+    }
     //printf("semantic analysis finished\n");
 
     return;

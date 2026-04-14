@@ -1,0 +1,5 @@
+int a, b, c;
+
+int not_main(void){
+    return 1;
+}

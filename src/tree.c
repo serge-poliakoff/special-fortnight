@@ -26,6 +26,7 @@ Node *makeNode(label_t label) {
   tree_label l;
   l.type = KEYWORD;
   l.value.label = label;
+  
   node->label = l;
   node-> firstChild = node->nextSibling = NULL;
   //node->lineno=linenum;
@@ -39,6 +40,7 @@ Node *makeNodeFull(tree_label label) {
     exit(1);
   }
   node->label = label;
+  
   node-> firstChild = node->nextSibling = NULL;
   //node->lineno=linenum;
   return node;

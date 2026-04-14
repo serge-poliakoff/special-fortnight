@@ -24,3 +24,6 @@ struct rect greater(struct rect r1, struct rect r2){
     return r2;
 }
 
+int main(void){
+    return 0;
+}

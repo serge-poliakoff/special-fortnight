@@ -1,4 +1,6 @@
-int main(int arg1, int arg2){
+int main(void){
+    int arg1;
+    int arg2;
     if (arg1 == 2) {
         arg1 = arg1 + 5;
         return 2;

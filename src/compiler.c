@@ -9,6 +9,54 @@ static FILE* asmb;
 /// @brief name of the current function
 static char* cur_func_name;
 
+static Node* global_vars;
+
+// todo: add new structure for saving addresses of vars and structure fields
+
+static void compile_variables(Node* declVars/*, Node** typetable*/){
+    if (!declVars) return;
+    Node* cur = declVars->firstChild;
+    int global = declVars == global_vars;
+    int type_idx = 0;
+    if (global){
+        fprintf(asmb, "section .bss\n");
+    }
+    for (; cur; cur = cur->nextSibling) {
+        if (cur->label.type == TP) {
+            // todo: go through all the id's one one type label (same in semantics)
+            // Check if type is standart or exists in typetable or glob_types
+            char* type_name = cur->label.value.id;
+            char* var_name = cur->firstChild->label.value.id;
+            if (global == 1){
+                if (strcmp(type_name, "char") == 0){
+                    fprintf(asmb, "%s: resb 1\n", var_name);
+                }else if(strcmp(type_name, "int") == 0){
+                    fprintf(asmb, "%s: resb 4\n", var_name);
+                }
+            }
+        } else if (cur->label.type == KEYWORD && cur->label.value.label == Struct) {
+            
+        }
+    }
+}
+
+static char* get_varaible_address(char* id/*, Node* localvars*/){
+    Node* cur = global_vars->firstChild;
+
+    for (; cur; cur = cur->nextSibling) {
+        if (cur->label.type == TP) {
+            // Check if type is standart or exists in typetable or glob_types
+            char* type_name = cur->label.value.id;
+            char* var_name = cur->firstChild->label.value.id;
+            if (strcmp(var_name, id) == 0){
+                // as it is a global var for now we can just return it's name
+                return var_name;
+            }
+        }
+    }
+    return NULL;
+}
+
 static void compile_expr(Node* expr, char* result_register){
     if (expr->label.type == INT){
         fprintf(asmb, "mov %s, %d\n",
@@ -36,13 +84,22 @@ static void compile_expr(Node* expr, char* result_register){
 
                 //pop all registers, used for arguments
                 return;
+            }else {
+                // Otherwise, field access
+                // for structs, somewhat complicated adress search
+                //maybe put in all struct field their relative adress (-3 for example)
+                //and then just add these strings up until the last point ?
+                //a.b.c   -> [{a.addr}{b.addr}{c.addr}] -> [a - 3 - 8]
             }
         }
-        // Otherwise, field access
-        // for structs, somewhat complicated adress search
-        //maybe put in all struct field their relative adress (-3 for example)
-        //and then just add these strings up until the last point ?
-        //a.b.c   -> [{a.addr}{b.addr}{c.addr}] -> [a - 3 - 8]
+        // no child -> simple variable access
+        char* var_id = expr -> label.value.id;
+        char* addr = get_varaible_address(var_id);
+        if (addr){
+            //access to a global var
+            
+            fprintf(asmb, "mov %s, qword [%s]\n", result_register ? result_register : "rax", addr);
+        }
         return;
     }
 
@@ -149,6 +206,15 @@ static void compile_instr(Node* instr){
     // Variable assignment: two children
     if (instr->firstChild && instr->firstChild->nextSibling) {
         //assign variable
+        //todo: (here we do not check if it's structured)
+        char* var_id = instr->firstChild->label.value.id;
+        char* addr = get_varaible_address(var_id);
+        if (addr){
+            //assigment to global variable
+            compile_expr(instr->firstChild->nextSibling, NULL);
+            //now right hand is in eax
+            fprintf(asmb, "mov qword [%s], rax\n", addr);
+        }
         return;
     }
     fprintf(stderr, "Semantic analyser error: cannot analyse instruction");
@@ -173,7 +239,8 @@ extern void compile(Node* prog){
     
     asmb = fopen("_anonymous.asm", "w");
 
-    Node* glob_vars = prog->firstChild;
+    global_vars = prog->firstChild;
+    compile_variables(global_vars);
     Node* functs = prog->firstChild->nextSibling;
     
     Node* cur_func = functs->firstChild; //current "DeclFonct" node
@@ -192,7 +259,7 @@ extern void compile(Node* prog){
         cur_func = cur_func -> nextSibling;
     }
 
-    //printf("semantic analysis finished\n");
+    
     fclose(asmb);
     
     //compile nasm

@@ -17,3 +17,7 @@ char with_params(int a, char b){
 int with_params2(int a, int b, int c){
     return b;
 }
+
+int main(void){
+    return 0;
+}
