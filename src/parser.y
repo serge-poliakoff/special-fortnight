@@ -337,18 +337,16 @@ int main(int argc, char **argv) {
 		yyparse();
 	} while(!feof(yyin));
 
-    
+    int dry_run = argc > 1 && strcmp(argv[1], "--dry-run") == 0;
 
-    if(argc > 1){
-        if (strcmp(argv[1], "--dry-run") != 0){
-            printTree(prog);
-        }
-    }else{
-	    printTree(prog);
+    if (!dry_run){
+        printTree(prog);
     }
     analyse_semantics(prog);
 
-    compile(prog);
+    if (!dry_run){
+        compile(prog);
+    }
 
 	deleteTree(prog);
 	printf("Parsed successfully\n");

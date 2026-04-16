@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <tree.h>
+#include "tree.h"
+#include "vartable.h"
 
 /// @brief file to which we will write assembler code
 static FILE* asmb;
@@ -15,7 +16,7 @@ static Node* global_vars;
 
 static void compile_variables(Node* declVars/*, Node** typetable*/){
     if (!declVars) return;
-    Node* cur = declVars->firstChild;
+    /*Node* cur = declVars->firstChild;
     int global = declVars == global_vars;
     int type_idx = 0;
     if (global){
@@ -37,6 +38,17 @@ static void compile_variables(Node* declVars/*, Node** typetable*/){
         } else if (cur->label.type == KEYWORD && cur->label.value.label == Struct) {
             
         }
+    }*/
+    int global = declVars == global_vars;
+    if (!global) return;
+
+    VarNode* vars = globalTable.vars;
+    fprintf(asmb, "section .bss\n");
+    for (int i = 0; i < globalTable.size; i++){
+        if (vars[i].addr_type == STATIC){
+            fprintf(asmb, "%s: resb %lld\n", vars[i].id, vars[i].size);
+        }
+        //printf("%s: resb %lld\n", vars[i].id, vars[i].size);
     }
 }
 
@@ -259,7 +271,7 @@ extern void compile(Node* prog){
         cur_func = cur_func -> nextSibling;
     }
 
-    
+    freeVarTables();
     fclose(asmb);
     
     //compile nasm

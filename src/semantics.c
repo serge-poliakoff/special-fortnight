@@ -5,6 +5,7 @@
 
 #include <tree.h>
 #include <semantics.h>
+#include <vartable.h>
 #define MAX_TYPES 100
 
 // todo: supress logs
@@ -12,7 +13,6 @@
 //          and add it to each error log (lots here, just one on grammar in yyerror())
 // todo: uncomment all exits and make all semantic functions static again
 // todo: rearange adding parameters and analysing localvars in analyse_func
-
 
 Node* glob_vars;    //pointer to program's global VarDecl
 Node* glob_types[MAX_TYPES];    //global custom types (structs)
@@ -106,13 +106,15 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
 /// declarations into a given typetable
 /// @param declVars pointer to VarDecl node
 /// @param typetable pointer to a preinitiallized type table of MAX_TYPES size (supposed initialized to all nulls)
-extern void analyse_variables(Node* declVars, Node** typetable){
+/// @param struct_flag 1 if analysing structure declaration, 0 if global/local variables
+extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag){
     if (!declVars) return;
     Node* cur = declVars->firstChild;
     int type_idx = 0;
 
     // todo: rethink function so it writes vartables for functions in hash
     // and those for structures in a separate typetables
+    // solution: add parameter structure
 
     int vartab_size = 10, vartab_ind = 0, frame_offset = 0;
     VarNode* vartable = (VarNode*)malloc(sizeof(VarNode) * vartab_size);
@@ -154,12 +156,12 @@ extern void analyse_variables(Node* declVars, Node** typetable){
                 // add variable to var_table
                 vartable[vartab_ind].id = strdup(varname);
                 if (strcmp(cur_func_name,"global") == 0){
+                    vartable[vartab_ind].addr_type = STATIC;
                     // global variable -> static allocation
-                    vartable[vartab_ind].addr = strdup(varname);
+                    // id is already its address
                 }else{
-                    // local variable -> offset from rbp
-                    // todo: union of char* and size_t for addr ?
-                    
+                    vartable[vartab_ind].addr_type = RELATIVE;
+                    vartable[vartab_ind].addr = frame_offset;
                     //vartable[vartab_ind].addr = "rbp" - frame_offset;
                     frame_offset += type_size;
                 }
@@ -187,20 +189,23 @@ extern void analyse_variables(Node* declVars, Node** typetable){
             // Add to typetable
             typetable[type_idx++] = struct_type;
             printf("Structure %s declaration found\n", struct_type->label.value.id);
-            analyse_variables(struct_type, typetable);
+            analyse_variables(struct_type, typetable, 1);
         }
     }
-
-
-    // todo: think what better suits for a vartable size indicator
-    // maybe just field "length" in structure returned by a hash function ?
+    printf("Vartable for %s is ready and contains %d entries\n", cur_func_name, vartab_ind);
     for (int i = 0 ; i < vartab_ind; i++){
-        printf("%s vartable: %s - %s, %lldb\n",
+        printf("%s vartable: %s - %d, %lldb\n",
             cur_func_name,
-            vartable[i].id, vartable[i].addr, vartable[i].size);
+            vartable[i].id,
+            vartable[i].addr, vartable[i].size);
     }
     printf("\n");
-    free(vartable);
+    if (strcmp(cur_func_name, "global") == 0 && !struct_flag){
+        addFunctionVars(cur_func_name, vartable, vartab_ind);
+    }else{
+
+        free(vartable);
+    }
 }
 
 // Helper: check function call arguments (stub)
@@ -575,7 +580,7 @@ extern void analyse_func(Node* func){
     Node* local_vars = func->firstChild->nextSibling->firstChild;
     Node* localtypes[MAX_TYPES];
     for(int i = 0; i < MAX_TYPES; i++) localtypes[i] = NULL;
-    analyse_variables(local_vars, localtypes);
+    analyse_variables(local_vars, localtypes, 0);
 
     //printf("Copying parameters to local vars: ");
     //printTree(paramsNode);   
@@ -612,7 +617,7 @@ extern void analyse_semantics(Node* tree){
     glob_vars = tree->firstChild;
     functs = tree->firstChild->nextSibling;
     for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;
-    analyse_variables(glob_vars, glob_types);
+    analyse_variables(glob_vars, glob_types, 0);
 
     //for(int i = 0; glob_types[i] != NULL; i++) printTree(glob_types[i]);
     /*printf("Semantics : printing functs tree \n");
@@ -631,7 +636,8 @@ extern void analyse_semantics(Node* tree){
         fprintf(stderr, "Semantic error: no function main was found in programm\n");
         exit(2);
     }
-    //printf("semantic analysis finished\n");
+    printf("semantic analysis finished\n");
 
+    
     return;
 }
