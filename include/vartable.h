@@ -39,6 +39,11 @@
 
     void addFunctionVars(char* func_name, VarNode* vars, int tab_size);
 
+    /// @brief returns variable table of given funciton
+    /// @param func_name name of function or global
+    /// @return shallow copy of VarTab object
+    VarTab getVarTable(char* func_name);
+
     /// @brief retrieve global or local variable info
     /// @param func_name name of function or "global"
     /// @param id id of a variable

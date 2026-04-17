@@ -10,63 +10,23 @@ static FILE* asmb;
 /// @brief name of the current function
 static char* cur_func_name;
 
-static Node* global_vars;
+static VarTab global_vars;
 
-// todo: add new structure for saving addresses of vars and structure fields
-
-static void compile_variables(Node* declVars/*, Node** typetable*/){
-    if (!declVars) return;
-    /*Node* cur = declVars->firstChild;
-    int global = declVars == global_vars;
-    int type_idx = 0;
-    if (global){
-        fprintf(asmb, "section .bss\n");
-    }
-    for (; cur; cur = cur->nextSibling) {
-        if (cur->label.type == TP) {
-            // todo: go through all the id's one one type label (same in semantics)
-            // Check if type is standart or exists in typetable or glob_types
-            char* type_name = cur->label.value.id;
-            char* var_name = cur->firstChild->label.value.id;
-            if (global == 1){
-                if (strcmp(type_name, "char") == 0){
-                    fprintf(asmb, "%s: resb 1\n", var_name);
-                }else if(strcmp(type_name, "int") == 0){
-                    fprintf(asmb, "%s: resb 4\n", var_name);
-                }
-            }
-        } else if (cur->label.type == KEYWORD && cur->label.value.label == Struct) {
-            
-        }
-    }*/
-    int global = declVars == global_vars;
-    if (!global) return;
-
-    VarNode* vars = globalTable.vars;
-    fprintf(asmb, "section .bss\n");
-    for (int i = 0; i < globalTable.size; i++){
-        if (vars[i].addr_type == STATIC){
-            fprintf(asmb, "%s: resb %lld\n", vars[i].id, vars[i].size);
-        }
-        //printf("%s: resb %lld\n", vars[i].id, vars[i].size);
-    }
-}
-
-static char* get_varaible_address(char* id/*, Node* localvars*/){
-    Node* cur = global_vars->firstChild;
-
-    for (; cur; cur = cur->nextSibling) {
-        if (cur->label.type == TP) {
-            // Check if type is standart or exists in typetable or glob_types
-            char* type_name = cur->label.value.id;
-            char* var_name = cur->firstChild->label.value.id;
-            if (strcmp(var_name, id) == 0){
-                // as it is a global var for now we can just return it's name
-                return var_name;
-            }
+/// @brief searches for a variable by its id in a given table
+/// @param id id of the variable
+/// @param vartable table of variables
+/// @return pointer to variable's VarNode or Null
+static VarNode* get_var_node(char* id, VarTab vartable){
+    VarNode* var = vartable.vars;
+    VarNode* variable = NULL;
+    for (int i = 0 ; i < vartable.size; i ++){
+        if (strcmp(var[i].id, id) == 0){
+            variable = &var[i];
+            break;
         }
     }
-    return NULL;
+
+    return variable;
 }
 
 static void compile_expr(Node* expr, char* result_register){
@@ -106,11 +66,13 @@ static void compile_expr(Node* expr, char* result_register){
         }
         // no child -> simple variable access
         char* var_id = expr -> label.value.id;
-        char* addr = get_varaible_address(var_id);
-        if (addr){
+        VarNode* var_node = get_var_node(var_id, global_vars);
+        if (var_node && var_node->addr_type == STATIC){
             //access to a global var
             
-            fprintf(asmb, "mov %s, qword [%s]\n", result_register ? result_register : "rax", addr);
+            fprintf(asmb, "mov %s, qword [%s]\n",
+                result_register ? result_register : "rax",
+                var_node->id);
         }
         return;
     }
@@ -215,17 +177,18 @@ static void compile_instr(Node* instr){
         //call funcName
         return;
     }
-    // Variable assignment: two children
+    // Variable/field assignment: two children
     if (instr->firstChild && instr->firstChild->nextSibling) {
         //assign variable
         //todo: (here we do not check if it's structured)
         char* var_id = instr->firstChild->label.value.id;
-        char* addr = get_varaible_address(var_id);
-        if (addr){
+        VarNode* var_node = get_var_node(var_id, global_vars);
+        if (var_node && var_node->addr_type == STATIC){
             //assigment to global variable
             compile_expr(instr->firstChild->nextSibling, NULL);
-            //now right hand is in eax
-            fprintf(asmb, "mov qword [%s], rax\n", addr);
+            //now right hand is in rax
+
+            fprintf(asmb, "mov qword [%s], rax\n", var_node->id);
         }
         return;
     }
@@ -251,8 +214,17 @@ extern void compile(Node* prog){
     
     asmb = fopen("_anonymous.asm", "w");
 
-    global_vars = prog->firstChild;
-    compile_variables(global_vars);
+    // static allocation
+    global_vars = getVarTable("global");
+    VarNode* vars = global_vars.vars;
+    fprintf(asmb, "section .bss\n");
+    for (int i = 0; i < globalTable.size; i++){
+        if (vars[i].addr_type == STATIC){
+            fprintf(asmb, "%s: resb %lld\n", vars[i].id, vars[i].size);
+        }
+        //printf("%s: resb %lld\n", vars[i].id, vars[i].size);
+    }
+
     Node* functs = prog->firstChild->nextSibling;
     
     Node* cur_func = functs->firstChild; //current "DeclFonct" node
