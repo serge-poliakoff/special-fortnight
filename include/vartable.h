@@ -27,7 +27,6 @@
 
     /// @brief table of vartables - used by both structDict & varsDict as their element
     typedef struct {
-        char* key;
         VarNode* vars;
         int size;
     } VarTab;
@@ -43,12 +42,6 @@
     /// @param func_name name of function or global
     /// @return shallow copy of VarTab object
     VarTab getVarTable(char* func_name);
-
-    /// @brief retrieve global or local variable info
-    /// @param func_name name of function or "global"
-    /// @param id id of a variable
-    /// @return variable information - address, size, fields
-    VarNode* getVariable(char* func_name, char* id);
 
     void freeVarTables();
 #endif

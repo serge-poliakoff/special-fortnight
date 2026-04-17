@@ -192,19 +192,21 @@ extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
             analyse_variables(struct_type, typetable, 1);
         }
     }
-    printf("Vartable for %s is ready and contains %d entries\n", cur_func_name, vartab_ind);
-    for (int i = 0 ; i < vartab_ind; i++){
-        printf("%s vartable: %s - %d, %lldb\n",
+    
+    if (!struct_flag){
+        printf("Saving %s vartable...\n", cur_func_name);
+        addFunctionVars(cur_func_name, vartable, vartab_ind);
+    }else{
+        addStuctVars(declVars->label.value.id, vartable, vartab_ind);
+
+        printf("Vartable for %s is ready and contains %d entries\n", cur_func_name, vartab_ind);
+        for (int i = 0 ; i < vartab_ind; i++){
+            printf("%s vartable: %s - %d, %lldb\n",
             cur_func_name,
             vartable[i].id,
             vartable[i].addr, vartable[i].size);
-    }
-    printf("\n");
-    if (strcmp(cur_func_name, "global") == 0 && !struct_flag){
-        addFunctionVars(cur_func_name, vartable, vartab_ind);
-    }else{
-
-        free(vartable);
+        }
+        printf("\n");
     }
 }
 

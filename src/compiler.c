@@ -218,7 +218,7 @@ extern void compile(Node* prog){
     global_vars = getVarTable("global");
     VarNode* vars = global_vars.vars;
     fprintf(asmb, "section .bss\n");
-    for (int i = 0; i < globalTable.size; i++){
+    for (int i = 0; i < global_vars.size; i++){
         if (vars[i].addr_type == STATIC){
             fprintf(asmb, "%s: resb %lld\n", vars[i].id, vars[i].size);
         }

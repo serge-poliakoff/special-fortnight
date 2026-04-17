@@ -6,6 +6,7 @@
 #include <tree.h>
 #include <semantics.h>
 #include <compiler.h>
+#include <vartable.h>
 extern int yylex();
 extern int yyparse();
 extern FILE* yyin;
@@ -346,6 +347,8 @@ int main(int argc, char **argv) {
 
     if (!dry_run){
         compile(prog);
+    }else{
+        freeVarTables();
     }
 
 	deleteTree(prog);
