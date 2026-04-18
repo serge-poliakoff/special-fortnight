@@ -5,6 +5,19 @@
 #include "tree.h"
 #include "vartable.h"
 
+/*todo:
+1. create structure vartables
+    - Create separate structure for struct's fields, indicating size of the type
+2. partial memory access compilation:
+    function that takes an IdExpr node and returns a memory access signature:
+    {
+        char* call;  assembly memory access like "dword [rbp - 12]"
+        size_t size;    a size in bytes of the variable, so the caller function knows
+                        which register size to put in mov/add/... instruction
+    }
+3. Rewrite assigment instructions and variable expressions using the function above
+At this point we will be ready to take any arithmetics with global variables, including structures
+*/
 /// @brief file to which we will write assembler code
 static FILE* asmb;
 /// @brief name of the current function

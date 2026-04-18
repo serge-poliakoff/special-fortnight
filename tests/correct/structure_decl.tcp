@@ -1,7 +1,12 @@
+struct structure2{
+    int a;
+    char b;
+};
+
 struct structure1{
     int a;
     char b;
-    struct structure1 next;
+    struct structure2 next;
 };
 
 struct structure1 global;
@@ -14,5 +19,5 @@ int main(void){
     };
     struct structure1 local;
 
-    return local.next.next.a + local.next.b;
+    return local.next.a + local.b;
 }

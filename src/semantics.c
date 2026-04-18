@@ -68,13 +68,14 @@ static Node* lookup_type_between(char* type, Node** types){
 static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
     // ident: Node* with label.type == ID, label.value.id is the name
     char* name = ident->label.value.id;
-    
+
     char *type = lookup_var_type_between(name, localVars);
     type = type ? type : lookup_var_type_between(name, glob_vars);
+    
+
     if (type == NULL){
         fprintf(stderr, "Semantic error: undeclared variable %s\n", name);
-        //uncomment on prod - exit(2)\n
-        return NULL;
+        exit(2);
     }
 
     Node* field = ident->firstChild;
@@ -85,15 +86,16 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
         typeNode = typeNode ? typeNode : lookup_type_between(type, glob_types);
         if (typeNode == NULL){
             fprintf(stderr, "Semantic error: undeclared structure type %s\n", type);
-            //uncomment on prod - exit(2)\n
-            return NULL;
+            exit(2);
         }
+
         char* type1 = lookup_var_type_between(field->label.value.id, typeNode);
-        if (type == NULL){
-            fprintf(stderr, "Semantic error: field %s can't be found on %s\n", name, type);
-            //uncomment on prod - exit(2);
-            return NULL;
+        if (type1 == NULL){
+            fprintf(stderr, "Semantic error: field %s can't be found on %s\n",
+                field->label.value.id, type);
+            exit(2);
         }
+
         type = type1;
         field = field -> firstChild;
     }
@@ -116,34 +118,40 @@ extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
     // and those for structures in a separate typetables
     // solution: add parameter structure
 
-    int vartab_size = 10, vartab_ind = 0, frame_offset = 0;
+    int vartab_size = 5, vartab_ind = 0, frame_offset = 0;
     VarNode* vartable = (VarNode*)malloc(sizeof(VarNode) * vartab_size);
+
+    printf("[Debug]: analysing variables of %s",
+        struct_flag ? declVars->label.value.id : cur_func_name);
 
     for (; cur; cur = cur->nextSibling) {
         if (cur->label.type == TP) {
             // deduce variable(s) type and size
             char* type_name = cur->label.value.id;
             size_t type_size;
+
+            //todo: rename to found_struct_type
+            StructListNode* found = NULL;
             if (strcmp(type_name, "int") == 0){
                 type_size = 4;
             }else if (strcmp(type_name, "char") == 0){
                 type_size = 1;
             }else{
                 // looking for a struct type of variable(s)
-                Node* found = lookup_type_between(type_name, glob_types);
-                found = found ? found : lookup_type_between(type_name, typetable);
+                found = 
+                    getStructType(cur_func_name, type_name);
+                found = found ? found :
+                    getStructType("global", type_name);
 
                 if (found == NULL) {
                     fprintf(stderr, "Semantic error: %s is declared with an undeclared type %s\n",
                         cur->firstChild->label.value.id, type_name);
                     exit(2);
                 }
-                // todo: get type's size from typetables
-                type_size = 8;
+                // todo: get type's size from funchash's typetables
+                type_size = found->size;
             }
-            // todo: add all variables (children of cur to a table, at the end save it
-            //  to the hash table of vartables)
-            // todo: separate this logic into vartables module
+            
             for (Node* cur_id_node = cur->firstChild; cur_id_node; cur_id_node = cur_id_node->nextSibling){
                 char* varname = cur_id_node->label.value.id;
                 // check repeating identifier error
@@ -155,7 +163,7 @@ extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
                 }
                 // add variable to var_table
                 vartable[vartab_ind].id = strdup(varname);
-                if (strcmp(cur_func_name,"global") == 0){
+                if (strcmp(cur_func_name,"global") == 0 && !struct_flag){
                     vartable[vartab_ind].addr_type = STATIC;
                     // global variable -> static allocation
                     // id is already its address
@@ -170,7 +178,7 @@ extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
                 // todo: typetables aren't needed in compilation, as the pointer to their data
                 //  is effectively inside the fields, however, their data must be stored
                 //  until the end of the process, so their ressources must be freed at the las moment
-                //vartable[vartab_ind].fields = *found_type;
+                vartable[vartab_ind].fields = found ? found->fields : NULL;
 
                 //increase table capacity if needed
                 vartab_ind++;
@@ -186,23 +194,34 @@ extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
         } else if (cur->label.type == KEYWORD && cur->label.value.label == Struct) {
             // Add struct type to typetable
             Node* struct_type = cur->firstChild; // Should be TP node for struct name
+
             // Add to typetable
-            typetable[type_idx++] = struct_type;
+            
             printf("Structure %s declaration found\n", struct_type->label.value.id);
             analyse_variables(struct_type, typetable, 1);
+            typetable[type_idx++] = struct_type;
         }
     }
     
     if (!struct_flag){
         printf("Saving %s vartable...\n", cur_func_name);
         addFunctionVars(cur_func_name, vartable, vartab_ind);
+        for (int i = 0 ; i < vartab_ind; i++){
+            printf("%s vartable: %s - %d - %p, %lldb\n",
+            cur_func_name,
+            vartable[i].id,
+            vartable[i].addr,
+            vartable[i].fields,
+            vartable[i].size);
+        }
     }else{
-        addStuctVars(declVars->label.value.id, vartable, vartab_ind);
+        
+        addStuctVars(cur_func_name, declVars->label.value.id, vartable, vartab_ind);
 
         printf("Vartable for %s is ready and contains %d entries\n", cur_func_name, vartab_ind);
         for (int i = 0 ; i < vartab_ind; i++){
             printf("%s vartable: %s - %d, %lldb\n",
-            cur_func_name,
+            declVars->label.value.id,
             vartable[i].id,
             vartable[i].addr, vartable[i].size);
         }
@@ -580,13 +599,8 @@ extern void analyse_func(Node* func){
     }
 
     Node* local_vars = func->firstChild->nextSibling->firstChild;
-    Node* localtypes[MAX_TYPES];
-    for(int i = 0; i < MAX_TYPES; i++) localtypes[i] = NULL;
-    analyse_variables(local_vars, localtypes, 0);
 
     //printf("Copying parameters to local vars: ");
-    //printTree(paramsNode);   
-    //todo: copy before analysing variables (so the stack keeps aligned with local vars then)
     param = paramsNode->firstChild;
     while (param)
     {
@@ -595,6 +609,10 @@ extern void analyse_func(Node* func){
         }
         param = param -> nextSibling;
     }
+
+    Node* localtypes[MAX_TYPES];
+    for(int i = 0; i < MAX_TYPES; i++) localtypes[i] = NULL;
+    analyse_variables(local_vars, localtypes, 0);
     
     printf("analysing function %s: finished analysing variables\n", identNode->label.value.id);
 
@@ -621,7 +639,7 @@ extern void analyse_semantics(Node* tree){
     for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;
     analyse_variables(glob_vars, glob_types, 0);
 
-    //for(int i = 0; glob_types[i] != NULL; i++) printTree(glob_types[i]);
+    for(int i = 0; glob_types[i] != NULL; i++) printTree(glob_types[i]);
     /*printf("Semantics : printing functs tree \n");
     printTree(functs);
     printf("\n");*/

@@ -12,6 +12,8 @@
         RELATIVE
     } AddrType;
 
+    struct VarTab;
+
     typedef struct var_node {
         char* id;
         /// @brief type of address. if STATIC, use "id" as address, if RELATIVE - addr field gives you offset from framestack
@@ -19,22 +21,30 @@
         /// @brief offset from framestack for local variables. For global use "id"
         int addr;
         /// @brief pointer to a list of fields of structure with their relative addresses. NULL for int or char. Do not free when cleaning vartables
-        struct var_node** fields;
+        struct VarTab *fields;
+        //struct VarTab* fields;
         /// @brief size of variable / type in bytes
         size_t size;
     } VarNode;
 
 
     /// @brief table of vartables - used by both structDict & varsDict as their element
-    typedef struct {
+    typedef struct VarTab{
         VarNode* vars;
         int size;
     } VarTab;
     
+    /// @brief an alement of a linked-list of structures table
+    typedef struct StructListNode {
+        char* struct_name;
+        VarTab* fields;
+        size_t size;
+        struct StructListNode* next;
+    } StructListNode;
 
     extern VarTab globalTable;
 
-    void addStuctVars(char* struct_name, VarNode* fields, int tab_size);
+    void addStuctVars(char* func_name, char* struct_name, VarNode* fields, int tab_size);
 
     void addFunctionVars(char* func_name, VarNode* vars, int tab_size);
 
@@ -42,6 +52,8 @@
     /// @param func_name name of function or global
     /// @return shallow copy of VarTab object
     VarTab getVarTable(char* func_name);
+
+    StructListNode* getStructType(char* func_name, char* struct_name);
 
     void freeVarTables();
 #endif
