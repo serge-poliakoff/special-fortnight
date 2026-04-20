@@ -5,7 +5,9 @@
 #include "tree.h"
 #include "vartable.h"
 
-//todo: rewrite division and multiplication (there's something special about idiv)
+//todo: rewrite division (there's something special about idiv)
+//consider asking copilot how does this hit work with registers
+
 //continue with conditions
 
 typedef struct {
@@ -111,7 +113,7 @@ static void compile_expr(Node* expr, char* result_register){
                 // Function call
                 
                 //put arguments in rdi, rsi, rcx, r9 - 11, pushing each of them before update
-
+                fprintf(asmb, "call %s\n", expr->label.value.id);
                 // make call
 
                 //pop all registers, used for arguments
@@ -220,11 +222,17 @@ static void compile_instr(Node* instr){
                 break;
             }
             case SuiteInstr:
-                //compile further instructions
+                Node* curInstr = instr -> firstChild;
+                while (curInstr != NULL)
+                {
+                    compile_instr(curInstr);
+                    curInstr = curInstr ->nextSibling;
+                }
                 break;
             default:
                 // todo: implement a funciton in tree.c to print a keyword
-                fprintf(stderr, "Sematic analyser error: unknown keyword %d", kw->label.value.label);
+                fprintf(stderr, "Compile error: unknown keyword %s",
+                    getTreeLabelName(kw->label.value.label));
                 exit(2);
         }
         return;
@@ -232,6 +240,15 @@ static void compile_instr(Node* instr){
     // Function call: single child
     if (instr->firstChild && instr->firstChild->nextSibling == NULL) {
         Node* callNode = instr->firstChild;
+        Node* cur_arg = callNode->firstChild->firstChild;
+        while (cur_arg != NULL)
+        {
+            compile_expr(cur_arg, "rdi");
+            cur_arg = cur_arg -> nextSibling;
+        }
+        
+        fprintf(asmb, "call %s\n", callNode->label.value.id);
+        
         //call funcName
         return;
     }
@@ -263,9 +280,11 @@ static void compile_func(Node* func){
 extern void compile(Node* prog){
     if (prog == NULL){
         fprintf(stderr, "Compile error: Program tree is null");
-        exit(3);
+        exit(-1);
     }
     
+    printTree(prog);
+
     asmb = fopen("_anonymous.asm", "w");
 
     // static allocation
@@ -276,8 +295,9 @@ extern void compile(Node* prog){
         if (vars[i].addr_type == STATIC){
             fprintf(asmb, "%s: resb %lld\n", vars[i].id, vars[i].size);
         }
-        //printf("%s: resb %lld\n", vars[i].id, vars[i].size);
     }
+    // Built-in function buffers
+    fprintf(asmb, "getint_buf: resb 32\nputint_buf: resb 24\n");
 
     Node* functs = prog->firstChild->nextSibling;
     
@@ -298,8 +318,126 @@ extern void compile(Node* prog){
     }
 
     freeVarTables();
+
+    // Write built-in functions to output assembly
+    fprintf(asmb,
+        "global getchar\n"
+        "global getint\n"
+        "global putchar\n"
+        "global putint\n"
+        "section .text\n"
+        "; --- getchar ---\n"
+        "getchar:\n"
+        "    mov rax, 0\n"
+        "    mov rdi, 0\n"
+        "    lea rsi, [rsp-8]\n"
+        "    mov rdx, 1\n"
+        "    syscall\n"
+        "    cmp rax, 1\n"
+        "    jne getchar_eof\n"
+        "    mov al, byte [rsp-8]\n"
+        "    movzx rax, al\n"
+        "    ret\n"
+        "getchar_eof:\n"
+        "    mov rax, -1\n"
+        "    ret\n"
+
+        "; --- getint ---\n"
+        "getint:\n"
+        "    mov rax, 0\n"
+        "    mov rdi, 0\n"
+        "    mov rsi, getint_buf\n"
+        "    mov rdx, 32\n"
+        "    syscall\n"
+        "    cmp rax, 0\n"
+        "    jle getint_io_error\n"
+        "    mov rcx, getint_buf\n"
+        "    mov rbx, 0\n"
+        "    mov rdx, 0\n"
+        "    mov al, [rcx]\n"
+        "    cmp al, '-'\n"
+        "    jne getint_check_plus\n"
+        "    inc rcx\n"
+        "    mov rdx, 1\n"
+        "    jmp getint_parse\n"
+        "getint_check_plus:\n"
+        "    cmp al, '+'\n"
+        "    jne getint_parse\n"
+        "    inc rcx\n"
+        "getint_parse:\n"
+        "    mov al, [rcx]\n"
+        "    cmp al, 10\n"
+        "    je getint_done\n"
+        "    cmp al, '0'\n"
+        "    jb getint_io_error\n"
+        "    cmp al, '9'\n"
+        "    ja getint_io_error\n"
+        "    imul rbx, rbx, 10\n"
+        "    sub al, '0'\n"
+        "    add rbx, rax\n"
+        "    inc rcx\n"
+        "    jmp getint_parse\n"
+        "getint_done:\n"
+        "    cmp rdx, 0\n"
+        "    je getint_ret\n"
+        "    neg rbx\n"
+        "getint_ret:\n"
+        "    mov rax, rbx\n"
+        "    ret\n"
+        "getint_io_error:\n"
+        "    mov rax, 60\n"
+        "    mov rdi, 5\n"
+        "    syscall\n"
+
+        "; --- putchar ---\n"
+        "putchar:\n"
+        "    mov rax, 1\n"
+        "    mov rdi, 1\n"
+        "    lea rsi, [rsp-8]\n"
+        "    mov [rsp-8], dil\n"
+        "    mov rdx, 1\n"
+        "    syscall\n"
+        "    ret\n"
+
+        "; --- putint ---\n"
+        "putint:\n"
+        "    mov rcx, putint_buf\n"
+        "    mov rax, rdi\n"
+        "    mov rbx, 10\n"
+        "    mov rdx, 0\n"
+        "    mov r8, 0\n"
+        "    cmp rax, 0\n"
+        "    jge putint_loop\n"
+        "    mov byte [rcx], '-'\n"
+        "    inc rcx\n"
+        "    neg rax\n"
+        "putint_loop:\n"
+        "    xor rdx, rdx\n"
+        "    div rbx\n"
+        "    add dl, '0'\n"
+        "    push rdx\n"
+        "    inc r8\n"
+        "    test rax, rax\n"
+        "    jnz putint_loop\n"
+        "putint_print_digits:\n"
+        "    pop rdx\n"
+        "    mov [rcx], dl\n"
+        "    inc rcx\n"
+        "    dec r8\n"
+        "    jnz putint_print_digits\n"
+        "    mov byte [rcx], 10\n"
+        "    inc rcx\n"
+        "    sub rcx, putint_buf\n"
+        "    mov rax, 1\n"
+        "    mov rdi, 1\n"
+        "    mov rsi, putint_buf\n"
+        "    mov rdx, rcx\n"
+        "    syscall\n"
+        "    ret\n"
+    );
+
     fclose(asmb);
-    
+
     //compile nasm
     int obj_res = system("nasm -f elf64 _anonymous.asm -o _anonymous.o");
     if (obj_res != 0){

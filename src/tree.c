@@ -10,11 +10,17 @@ static const char *StringFromLabel[] = {
   FOREACH_TOKEN(GENERATE_STRING)
 };
 
+/// @brief returns a duplicate of given string
 extern char* strdup(const char* source){
 	char *res = (char*)malloc(strlen(source) + 1);
 	strcpy(res, source);
 	res[strlen(source)] = '\0';
 	return res;
+}
+
+
+extern char* getTreeLabelName(int ind){
+    return StringFromLabel[ind];
 }
 
 Node *makeNode(label_t label) {

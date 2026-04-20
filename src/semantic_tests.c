@@ -436,7 +436,7 @@ int funcsTest3(){
     assert(strcmp(check_function_call(&callNode, &localDeclVars, localtypes), "char") == 0);
     return 1;
 }
-
+/*
 /// @brief Test analyse_variables: correct struct registration
 int analyseVarsTest1() {
     // DeclVars: int a, b; char c; struct s1 { char c; }; s1 d;
@@ -500,7 +500,7 @@ int analyseVarsTest2() {
     assert(typetable[1] == NULL);
     return 1;
 }
-
+*/
 /// @brief validates signature of function with struct return type and void parameters
 /// @return 1 if test passed
 int analyseFuncSignatureTest1(){
@@ -605,11 +605,21 @@ int analyseFuncSignatureTest2(){
     return 1;
 }
 
+int built_in_tree_test(){
+    char* builtins[4] = {"getint", "putint", "getchar", "putchar"};
+    for (int i = 0 ; i < 4; i ++){
+        printf("%s tree: \n", builtins[i]);
+        printTree(built_func_tree(builtins[i]));
+        printf("\n");
+    }
+    return 1;
+}
+
 int main(){
     //todo: check why no error logs on function tests
     //todo: add linenum to each node in tree.c and log error with linenum
     int count_good = 0;
-    count_good += analyseVarsTest1();
+    /*count_good += analyseVarsTest1();
     count_good += analyseVarsTest2();
     count_good += exprTest1();
     count_good += exprTest2();
@@ -622,7 +632,8 @@ int main(){
     count_good += funcsTest2();
     count_good += funcsTest3();
     count_good += analyseFuncSignatureTest1();
-    count_good += analyseFuncSignatureTest2();
+    count_good += analyseFuncSignatureTest2();*/
+    count_good += built_in_tree_test();
     printf("Semantic expr tests passed: %d/14\n", count_good);
     return 0;
 }

@@ -79,6 +79,7 @@ typedef struct Node {
 } Node;
 
 char* strdup(const char* source);
+char* getTreeLabelName(int ind);
 
 /// @brief makes KEYWORD tree node from just a label
 /// @param label - the keyword of tcp language

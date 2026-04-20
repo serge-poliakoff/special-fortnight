@@ -1,0 +1,13 @@
+int res;
+
+int main(void){
+    char c;
+    putchar('a');
+    c = 'b';
+    putchar(c);
+    c = getchar();
+    putint(14);
+    putint(52);
+    res = getint();
+    return res;
+}

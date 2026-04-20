@@ -228,12 +228,65 @@ extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
     }
 }
 
-// Helper: check function call arguments (stub)
+
+// Helper: create a mock EnTeteFonct node for a built-in function
+Node* built_func_tree(const char* name) {
+    if (strcmp(name, "getchar") == 0) {
+        // char getchar(void)
+        Node* entete = makeNode(EnTeteFonct);
+        Node* type = makeNodeFull((tree_label){.type=TP, .value.id=strdup("char")});
+        Node* ident = makeNodeFull((tree_label){.type=ID, .value.id=strdup("getchar")});
+        Node* params = makeNode(Parametres);
+        Node* void_param = makeNode(Void);
+        addChild(params, void_param);
+        addChild(entete, type); addChild(entete, ident); addChild(entete, params);
+        return entete;
+    } else if (strcmp(name, "getint") == 0) {
+        // int getint(void)
+        Node* entete = makeNode(EnTeteFonct);
+        Node* type = makeNodeFull((tree_label){.type=TP, .value.id=strdup("int")});
+        Node* ident = makeNodeFull((tree_label){.type=ID, .value.id=strdup("getint")});
+        Node* params = makeNode(Parametres);
+        Node* void_param = makeNode(Void);
+        addChild(params, void_param);
+        addChild(entete, type); addChild(entete, ident); addChild(entete, params);
+        return entete;
+    } else if (strcmp(name, "putchar") == 0) {
+        // void putchar(char)
+        Node* entete = makeNode(EnTeteFonct);
+        Node* type = makeNode(Void);
+        Node* ident = makeNodeFull((tree_label){.type=ID, .value.id=strdup("putchar")});
+        Node* params = makeNode(Parametres);
+        Node* arg_type = makeNodeFull((tree_label){.type=TP, .value.id=strdup("char")});
+        Node* arg_ident = makeNodeFull((tree_label){.type=ID, .value.id=strdup("c")});
+        addChild(arg_type, arg_ident);
+        addChild(params, arg_type);
+        addChild(entete, type); addChild(entete, ident); addChild(entete, params);
+        return entete;
+    } else if (strcmp(name, "putint") == 0) {
+        // void putint(int)
+        Node* entete = makeNode(EnTeteFonct);
+        Node* type = makeNode(Void);
+        Node* ident = makeNodeFull((tree_label){.type=ID, .value.id=strdup("putint")});
+        Node* params = makeNode(Parametres);
+        Node* arg_type = makeNodeFull((tree_label){.type=TP, .value.id=strdup("int")});
+        Node* arg_ident = makeNodeFull((tree_label){.type=ID, .value.id=strdup("n")});
+        addChild(arg_type, arg_ident);
+        addChild(params, arg_type);
+        addChild(entete, type); addChild(entete, ident); addChild(entete, params);
+        return entete;
+    }
+    return NULL;
+}
+
+// Helper: check function call arguments
 extern char* check_function_call(Node* funcNode, Node* localVars, Node** localtypes) {
     // funcNode: ID node with function name, arguments: Arguments node
     char* func_name = funcNode->label.value.id;
     Node* arguments = funcNode->firstChild;
 
+    Node* params, *header;
+    char* returnType;
     // searching function in program
     Node* cur = functs ? functs->firstChild : NULL;
     Node* found_func = NULL;
@@ -249,17 +302,24 @@ extern char* check_function_call(Node* funcNode, Node* localVars, Node** localty
         }
         cur = cur->nextSibling;
     }
+    int builtin = 0;
+    if (!found_func){
+        found_func = built_func_tree(func_name);
+        //if it fails, function exits on next if
+        builtin = 1;
+    }
     if (!found_func) {
         fprintf(stderr, "Semantic error: function '%s' not found\n", func_name);
         exit(2);
     }
 
+
     // Get parameter list from EnTeteFonct
-    Node* header = found_func->firstChild;
-    char* returnType = header->firstChild->label.type == TP ?
+    header = builtin ? found_func : found_func->firstChild;
+    returnType = header->firstChild->label.type == TP ?
         header->firstChild->label.value.id : NULL; // return this if arguments are valid (NULL for void functions)
     
-    Node* params = header->firstChild->nextSibling->nextSibling; // Parametres node
+    params = header->firstChild->nextSibling->nextSibling; // Parametres node
     Node* param = params->firstChild;
     // validate function without arguments
     if (param -> label.type == KEYWORD && param -> label.value.label == Void){
@@ -314,6 +374,10 @@ extern char* check_function_call(Node* funcNode, Node* localVars, Node** localty
         exit(2);
     }
     
+    if (builtin){
+        deleteTree(found_func);
+    }
+
     return returnType;
 }
 
