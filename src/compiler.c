@@ -5,19 +5,14 @@
 #include "tree.h"
 #include "vartable.h"
 
-/*todo:
-1. create structure vartables
-    - Create separate structure for struct's fields, indicating size of the type
-2. partial memory access compilation:
-    function that takes an IdExpr node and returns a memory access signature:
-    {
-        char* call;  assembly memory access like "dword [rbp - 12]"
-        size_t size;    a size in bytes of the variable, so the caller function knows
-                        which register size to put in mov/add/... instruction
-    }
-3. Rewrite assigment instructions and variable expressions using the function above
-At this point we will be ready to take any arithmetics with global variables, including structures
-*/
+//todo: rewrite division and multiplication (there's something special about idiv)
+//continue with conditions
+
+typedef struct {
+    char* memory_call;
+    size_t size;
+} MemoryCall;
+
 /// @brief file to which we will write assembler code
 static FILE* asmb;
 /// @brief name of the current function
@@ -40,6 +35,58 @@ static VarNode* get_var_node(char* id, VarTab vartable){
     }
 
     return variable;
+}
+
+/// @brief returns a Memory Call for given idExpr
+/// @param idExpr 
+/// @return char* memory_call - an adress of given field/variable (to be surrounded with []), size - size of variable in bytes
+/// @attention char* memory_call is to be freed manually
+static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
+    char* var_id = idExpr -> label.value.id;
+    
+    VarNode* var_node = get_var_node(var_id, global_vars);
+    if (var_node == NULL){
+        fprintf(stderr, "Variables %s cannot be found\n", var_id);
+        exit(-1);
+    }
+    int mem_call_size = (strlen(var_id) > 3 ? strlen(var_id) : 3) + 5; //max: var_id+999\0 / rbp-999\0
+    char* mem_call = malloc(mem_call_size); 
+    // just variable access, no fields
+    if (idExpr->firstChild == NULL){
+        if (var_node -> addr_type == STATIC){
+            sprintf(mem_call, "%s", var_id);
+        }else{
+            sprintf(mem_call, "rbp%d", -1*var_node->addr);
+        }
+        MemoryCall res = {mem_call, var_node->size};
+        return res;
+    }
+    //field access
+    int offset_mult = var_node -> addr_type == STATIC ? 1 : -1;
+    int offset  = 0;
+    Node* field = idExpr->firstChild;
+    VarTab* parentFieldsTab = var_node->fields;
+    while (field)
+    {
+        VarNode* field_node = get_var_node(field->label.value.id, *parentFieldsTab);
+        if (field_node == NULL){
+            fprintf(stderr, "Field %s cannot be found on variable%s\n",
+                field->label.value.id, var_id);
+            exit(-1);
+        }
+        offset += field_node->addr;
+
+        field = field->firstChild;
+        parentFieldsTab = field_node->fields;
+    }
+
+    if (var_node -> addr_type == STATIC){
+        sprintf(mem_call, "%s+%d", var_id, offset);
+    }else{
+        sprintf(mem_call, "rbp-%d", offset);
+    }
+    MemoryCall res = {mem_call, var_node->size};
+    return res;
 }
 
 static void compile_expr(Node* expr, char* result_register){
@@ -78,15 +125,13 @@ static void compile_expr(Node* expr, char* result_register){
             }
         }
         // no child -> simple variable access
-        char* var_id = expr -> label.value.id;
-        VarNode* var_node = get_var_node(var_id, global_vars);
-        if (var_node && var_node->addr_type == STATIC){
-            //access to a global var
-            
-            fprintf(asmb, "mov %s, qword [%s]\n",
-                result_register ? result_register : "rax",
-                var_node->id);
-        }
+        MemoryCall mem_c = getMemoryCall(expr);
+        fprintf(asmb, "mov %s, %s [%s]\n",
+            result_register ? result_register : "rax",
+            "qword"/*mem_c.size == 4 ? "dword" : "byte"*/, //for now only char and int
+            mem_c.memory_call);
+        free(mem_c.memory_call);
+
         return;
     }
 
@@ -192,17 +237,13 @@ static void compile_instr(Node* instr){
     }
     // Variable/field assignment: two children
     if (instr->firstChild && instr->firstChild->nextSibling) {
-        //assign variable
-        //todo: (here we do not check if it's structured)
-        char* var_id = instr->firstChild->label.value.id;
-        VarNode* var_node = get_var_node(var_id, global_vars);
-        if (var_node && var_node->addr_type == STATIC){
-            //assigment to global variable
-            compile_expr(instr->firstChild->nextSibling, NULL);
-            //now right hand is in rax
+        compile_expr(instr->firstChild->nextSibling, NULL);
 
-            fprintf(asmb, "mov qword [%s], rax\n", var_node->id);
-        }
+        //now right hand is in rax
+        MemoryCall mem_c = getMemoryCall(instr->firstChild);
+
+        fprintf(asmb, "mov qword [%s], rax\n", mem_c.memory_call);
+        free(mem_c.memory_call);
         return;
     }
     fprintf(stderr, "Semantic analyser error: cannot analyse instruction");
