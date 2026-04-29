@@ -1,0 +1,8 @@
+struct rec {
+    int a, b;
+    struct rec innner;
+};
+
+int main(void){
+    return 0;
+}

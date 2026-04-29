@@ -1,0 +1,11 @@
+struct a {
+    int a1;
+};
+
+struct a {
+    int b1;
+};
+
+int main(void){
+    return 0;
+}

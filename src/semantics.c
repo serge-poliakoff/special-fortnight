@@ -11,7 +11,7 @@
 // todo: supress logs
 // todo: add lineno to each tree node (easy todo just in tree.c as linenum is extern)
 //          and add it to each error log (lots here, just one on grammar in yyerror())
-// todo: uncomment all exits and make all semantic functions static again
+// todo: uncomment all exits
 
 Node* glob_vars;    //pointer to program's global VarDecl
 Node* glob_types[MAX_TYPES];    //global custom types (structs)
@@ -20,7 +20,7 @@ Node* functs;   //pointer to DeclFoncts node of tree
 static char* cur_func_name;
 static int have_main_func;
 
-extern char* check_type(Node* Exp, Node* localVars, Node** localtypes);
+static char* check_type(Node* Exp, Node* localVars, Node** localtypes);
 
 /// @brief helper function for expression type analysing
 /// @param typeName name of a type
@@ -108,14 +108,13 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
 /// @param declVars pointer to VarDecl node
 /// @param typetable pointer to a preinitiallized type table of MAX_TYPES size (supposed initialized to all nulls)
 /// @param struct_flag 1 if analysing structure declaration, 0 if global/local variables
-extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag){
+static void analyse_variables(Node* declVars, Node** typetable, int struct_flag){
     if (!declVars) return;
     Node* cur = declVars->firstChild;
     int type_idx = 0;
 
-    // todo: rethink function so it writes vartables for functions in hash
-    // and those for structures in a separate typetables
-    // solution: add parameter structure
+    
+    // todo?: add parameter structure
 
     int vartab_size = 5, vartab_ind = 0, frame_offset = 0;
     VarNode* vartable = (VarNode*)malloc(sizeof(VarNode) * vartab_size);
@@ -129,26 +128,25 @@ extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
             char* type_name = cur->label.value.id;
             size_t type_size;
 
-            //todo: rename to found_struct_type
-            StructListNode* found = NULL;
+            StructListNode* found_struct_type = NULL;
             if (strcmp(type_name, "int") == 0){
                 type_size = 4;
             }else if (strcmp(type_name, "char") == 0){
                 type_size = 1;
             }else{
                 // looking for a struct type of variable(s)
-                found = 
+                found_struct_type = 
                     getStructType(cur_func_name, type_name);
-                found = found ? found :
+                found_struct_type = found_struct_type ? found_struct_type :
                     getStructType("global", type_name);
 
-                if (found == NULL) {
+                if (found_struct_type == NULL) {
                     fprintf(stderr, "Semantic error: %s is declared with an undeclared type %s\n",
                         cur->firstChild->label.value.id, type_name);
                     exit(2);
                 }
-                // todo: get type's size from funchash's typetables
-                type_size = found->size;
+                
+                type_size = found_struct_type->size;
             }
             
             for (Node* cur_id_node = cur->firstChild; cur_id_node; cur_id_node = cur_id_node->nextSibling){
@@ -177,7 +175,7 @@ extern void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
                 // todo: typetables aren't needed in compilation, as the pointer to their data
                 //  is effectively inside the fields, however, their data must be stored
                 //  until the end of the process, so their ressources must be freed at the las moment
-                vartable[vartab_ind].fields = found ? found->fields : NULL;
+                vartable[vartab_ind].fields = found_struct_type ? found_struct_type->fields : NULL;
 
                 //increase table capacity if needed
                 vartab_ind++;
@@ -280,7 +278,7 @@ Node* built_func_tree(const char* name) {
 }
 
 // Helper: check function call arguments
-extern char* check_function_call(Node* funcNode, Node* localVars, Node** localtypes) {
+static char* check_function_call(Node* funcNode, Node* localVars, Node** localtypes) {
     // funcNode: ID node with function name, arguments: Arguments node
     char* func_name = funcNode->label.value.id;
     Node* arguments = funcNode->firstChild;
@@ -367,8 +365,8 @@ extern char* check_function_call(Node* funcNode, Node* localVars, Node** localty
         param_count++;
         arg_count++;
     }
+
     // Check for extra/missing arguments
-    // todo: rewrite later: calculate number of arguments and parameters
     if (param || arg) {
         fprintf(stderr, "Semantic error: function '%s' expects %d arguments, got %d\n", func_name, param_count + (param != NULL), arg_count + (arg != NULL));
         exit(2);
@@ -389,7 +387,7 @@ extern char* check_function_call(Node* funcNode, Node* localVars, Node** localty
 /// @param localVars pointer to DeclVars of a current function
 /// @param localtypes a null-terminated-array of locally declared structure types (must be non-null)
 /// @return name of type of the expression
-extern char* check_type(Node* Exp, Node* localVars, Node** localtypes){
+static char* check_type(Node* Exp, Node* localVars, Node** localtypes){
     if (!Exp) return NULL;
     
     if (Exp->label.type == INT) return "int";
@@ -605,7 +603,7 @@ static void analyseInst(Node* instr, Node* localVars, Node** localtypes, char* r
 
 /// @brief provides sematic analysis for a given function
 /// @param func pointer to DeclFonct node of the function to analyse
-extern void analyse_func(Node* func){
+static void analyse_func(Node* func){
     assert(func != NULL);
     
     //printTree(func);
@@ -689,14 +687,13 @@ extern void analyse_func(Node* func){
 }
 
 /// @brief provides a semantic analyse of the program
-/// if a semantic error is found, exits with code 2
+/// if a semantic error is found, exits with code 2 
 /// @param tree pointer to the root of programm tree (Prog)
 extern void analyse_semantics(Node* tree){
     assert(tree != NULL);
     
     cur_func_name = "global";
 
-    // todo: verify there's now two variables with the same name
     glob_vars = tree->firstChild;
     functs = tree->firstChild->nextSibling;
     for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;

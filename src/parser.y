@@ -14,26 +14,6 @@ extern FILE* yyin;
 void yyerror(const char* s);
 Node* prog;
 
-//TODO:
-// - make node for NOT bool operator
-
-//the func below is not to be used - for now stick to IDENT names for structure types - 
-// anyway because of lexer you can't define "struct int" or smth like this,
-// so it is allover much easier to refer struct types just by their name
-// struct keyword would be so present just in the declaration of the type
-
-// modifies IDENT in "STRUCT IDENT" pattern to be "struct IDENT"
-// in a structure typed variable declaration
-void create_struct_type_name(tree_label *identity){
-    char *struct_type_id = identity->value.id;
-    char *full_struct_type_name = 
-        (char *)malloc(8 + strlen(struct_type_id)); // 'struct ' + \0
-    strcat(strcat(full_struct_type_name, "struct "), struct_type_id);
-    full_struct_type_name[7 + strlen(struct_type_id)] = '\0';
-    identity->value.id = full_struct_type_name;
-    free(struct_type_id);
-}
-
 %}
 
 %define parse.error verbose

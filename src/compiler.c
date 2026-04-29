@@ -39,7 +39,51 @@ static VarNode* get_var_node(char* id, VarTab vartable){
     return variable;
 }
 
-/// @brief returns a Memory Call for given idExpr
+/// @brief gives name a part-register of given size by the name of 64-bit register (ex. rax 4 -> eax) 
+/// @param r64name name of 64bit register
+/// @param size size of operand to fit (4 or 1)
+/// @param result pointer to the result string (must be at least char[4] (5 for r10 - r15))
+static void transform_register(char* r64name, size_t size, char* result){
+    int i;
+    switch (size)
+    {
+    case 4:
+        result[0] = 'e';
+        
+        for (i = 1; i < strlen(r64name); i++)
+            result[i] = r64name[i];
+        result[++i] = '\0';
+        return;
+    case 1:
+        if (!strcmp(r64name, "rsi") || !strcmp(r64name, "rdi")){
+            //here byte registers are named "sil" and "dil" for whatever reason
+            result[0] = r64name[1];
+            result[1] = 'i'; result[2] = 'l'; result[3] = '\0';
+        }else if(result[1] >= '0' && result[2] <= '9'){
+            //r8-r15
+            
+            for (i = 0; i < strlen(r64name); i++)
+                result[i] = r64name[i];
+            result[++i] = 'b'; result[++i] = '\0';
+        }else{
+            //rax, rbx, rcx...
+            result[0] = r64name[1];
+            result[1] = 'l'; result[2] = '\0';
+        }
+        return;
+    case 8:
+        
+        for(i = 0; i < strlen(r64name); i++)
+            result[i] = r64name[i];
+        result[++i] = '\0';
+        return;
+    default:
+        fprintf(stderr, "Error converting register name: function works only with 1 and 4 byte registers, got : %ld\n", size);
+        exit(-1);
+    }
+}
+
+/// @brief returns a Memory Call for given idExpr (simple variable access or field)
 /// @param idExpr 
 /// @return char* memory_call - an adress of given field/variable (to be surrounded with []), size - size of variable in bytes
 /// @attention char* memory_call is to be freed manually
@@ -68,9 +112,10 @@ static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
     int offset  = 0;
     Node* field = idExpr->firstChild;
     VarTab* parentFieldsTab = var_node->fields;
+    VarNode* field_node;
     while (field)
     {
-        VarNode* field_node = get_var_node(field->label.value.id, *parentFieldsTab);
+        field_node = get_var_node(field->label.value.id, *parentFieldsTab);
         if (field_node == NULL){
             fprintf(stderr, "Field %s cannot be found on variable%s\n",
                 field->label.value.id, var_id);
@@ -87,10 +132,11 @@ static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
     }else{
         sprintf(mem_call, "rbp-%d", offset);
     }
-    MemoryCall res = {mem_call, var_node->size};
+    MemoryCall res = {mem_call, field_node->size};
     return res;
 }
 
+//rax, rbx and rdx can be suppressed by any instruction
 static void compile_expr(Node* expr, char* result_register){
     if (expr->label.type == INT){
         fprintf(asmb, "mov %s, %d\n",
@@ -99,7 +145,7 @@ static void compile_expr(Node* expr, char* result_register){
     }
     
     if (expr->label.type == CHAR){
-        fprintf(asmb, "mov %s, %c\n",
+        fprintf(asmb, "mov %s, \'%c\'\n",
             result_register ? result_register : "rax", expr->label.value.character);
         return;
     }
@@ -118,19 +164,17 @@ static void compile_expr(Node* expr, char* result_register){
 
                 //pop all registers, used for arguments
                 return;
-            }else {
-                // Otherwise, field access
-                // for structs, somewhat complicated adress search
-                //maybe put in all struct field their relative adress (-3 for example)
-                //and then just add these strings up until the last point ?
-                //a.b.c   -> [{a.addr}{b.addr}{c.addr}] -> [a - 3 - 8]
             }
+            // structs are treated in getMemoryCall
         }
-        // no child -> simple variable access
+        // variable / struct field access
         MemoryCall mem_c = getMemoryCall(expr);
+        //later consider checking size for r10-r15 registers
+        char register_name[4];
+        transform_register(result_register ? result_register : "rax", mem_c.size, register_name);
         fprintf(asmb, "mov %s, %s [%s]\n",
-            result_register ? result_register : "rax",
-            "qword"/*mem_c.size == 4 ? "dword" : "byte"*/, //for now only char and int
+            register_name,
+            mem_c.size == 4 ? "dword" : "byte", //for now only char and int
             mem_c.memory_call);
         free(mem_c.memory_call);
 
@@ -149,7 +193,7 @@ static void compile_expr(Node* expr, char* result_register){
             
             return;            
         }else{
-            //result of first operand -> r.x
+            //result of first operand -> rax
             compile_expr(op2, NULL);
             fprintf(asmb, "push rax\n");
             //result of second -> rbx
@@ -167,7 +211,11 @@ static void compile_expr(Node* expr, char* result_register){
                 fprintf(asmb, "imul rax, rbx\n");
                 break;
             case '/':
-                fprintf(asmb, "idiv rax, rbx\n");
+                fprintf(asmb, "idiv rbx\n");
+                break;
+            case '%':
+                fprintf(asmb, "idiv rbx\n");
+                fprintf(asmb, "mov rax, rdx\n");
                 break;
             }
             if (result_register){
@@ -230,7 +278,6 @@ static void compile_instr(Node* instr){
                 }
                 break;
             default:
-                // todo: implement a funciton in tree.c to print a keyword
                 fprintf(stderr, "Compile error: unknown keyword %s",
                     getTreeLabelName(kw->label.value.label));
                 exit(2);
@@ -259,7 +306,13 @@ static void compile_instr(Node* instr){
         //now right hand is in rax
         MemoryCall mem_c = getMemoryCall(instr->firstChild);
 
-        fprintf(asmb, "mov qword [%s], rax\n", mem_c.memory_call);
+        char register_name[4];
+        transform_register("rax", mem_c.size, register_name);
+        
+        fprintf(asmb, "mov %s [%s], %s\n",
+            mem_c.size == 4 ? "dword" : "byte",
+            mem_c.memory_call,
+            register_name);
         free(mem_c.memory_call);
         return;
     }
@@ -298,7 +351,11 @@ extern void compile(Node* prog){
     }
     // Built-in function buffers
     fprintf(asmb, "getint_buf: resb 32\nputint_buf: resb 24\n");
-
+    fprintf(asmb,
+        "global getchar\n"
+        "global getint\n"
+        "global putchar\n"
+        "global putint\n");
     Node* functs = prog->firstChild->nextSibling;
     
     Node* cur_func = functs->firstChild; //current "DeclFonct" node
@@ -321,11 +378,6 @@ extern void compile(Node* prog){
 
     // Write built-in functions to output assembly
     fprintf(asmb,
-        "global getchar\n"
-        "global getint\n"
-        "global putchar\n"
-        "global putint\n"
-        "section .text\n"
         "; --- getchar ---\n"
         "getchar:\n"
         "    mov rax, 0\n"
@@ -392,11 +444,13 @@ extern void compile(Node* prog){
         "; --- putchar ---\n"
         "putchar:\n"
         "    mov rax, 1\n"
-        "    mov rdi, 1\n"
+        "    push 0\n"
         "    lea rsi, [rsp-8]\n"
         "    mov [rsp-8], dil\n"
         "    mov rdx, 1\n"
+        "    mov rdi, 1\n"
         "    syscall\n"
+        "    pop rax\n"
         "    ret\n"
 
         "; --- putint ---\n"

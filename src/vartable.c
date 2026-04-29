@@ -35,9 +35,6 @@
 */
 
 
-//todo:
-//  - add semantic tests on repeating function declaration / structure declaration
-
 // Hashtable node
 typedef struct VarTabHashNode {
     char* key;
