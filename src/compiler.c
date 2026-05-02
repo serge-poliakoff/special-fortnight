@@ -5,10 +5,10 @@
 #include "tree.h"
 #include "vartable.h"
 
-//todo: rewrite division (there's something special about idiv)
-//consider asking copilot how does this hit work with registers
+#define LABEL_NAME_SIZE 6
 
-//continue with conditions
+//todo: move part of checking result register on operands to the end of comiple_expr
+//  when finished with all types of expressions
 
 typedef struct {
     char* memory_call;
@@ -21,6 +21,18 @@ static FILE* asmb;
 static char* cur_func_name;
 
 static VarTab global_vars;
+
+/// @brief writes a random name consisting of latters of LABEL_NAME_SIZE length (+1 for '\0')
+/// @param destination pointer to the first latter of name
+void get_random_label_name(char* destination){
+    int i;
+    for(i = 0; i < LABEL_NAME_SIZE; i++){
+        destination[i] = 'a' + rand() % 26;
+    }
+    destination[i] = '\0';
+    return;
+}
+
 
 /// @brief searches for a variable by its id in a given table
 /// @param id id of the variable
@@ -42,45 +54,69 @@ static VarNode* get_var_node(char* id, VarTab vartable){
 /// @brief gives name a part-register of given size by the name of 64-bit register (ex. rax 4 -> eax) 
 /// @param r64name name of 64bit register
 /// @param size size of operand to fit (4 or 1)
-/// @param result pointer to the result string (must be at least char[4] (5 for r10 - r15))
-static void transform_register(char* r64name, size_t size, char* result){
-    int i;
+static char* transform_register(char* r64name, size_t size){
+    int i; char* result;
     switch (size)
     {
     case 4:
+        result = (char*)malloc(4);
+        if (result == NULL){
+            fprintf(stderr, "Allocation error\n");
+            exit(-1);
+        }
         result[0] = 'e';
         
         for (i = 1; i < strlen(r64name); i++)
             result[i] = r64name[i];
-        result[++i] = '\0';
-        return;
+        result[i] = '\0';
+        printf("%s\n", result);
+        break;
     case 1:
         if (!strcmp(r64name, "rsi") || !strcmp(r64name, "rdi")){
             //here byte registers are named "sil" and "dil" for whatever reason
+            result = malloc(4);
+            if (result == NULL){
+                fprintf(stderr, "Allocation error\n");
+                exit(-1);
+            }
             result[0] = r64name[1];
             result[1] = 'i'; result[2] = 'l'; result[3] = '\0';
         }else if(result[1] >= '0' && result[2] <= '9'){
             //r8-r15
-            
+            result = malloc(strlen(r64name) + 2);
+            if (result == NULL){
+                fprintf(stderr, "Allocation error\n");
+                exit(-1);
+            }
             for (i = 0; i < strlen(r64name); i++)
-                result[i] = r64name[i];
-            result[++i] = 'b'; result[++i] = '\0';
+                result[i] = r64name[i]; 
+            result[i++] = 'b'; result[i] = '\0';
         }else{
             //rax, rbx, rcx...
+            result = malloc(3);
+            if (result == NULL){
+                fprintf(stderr, "Allocation error\n");
+                exit(-1);
+            }
             result[0] = r64name[1];
             result[1] = 'l'; result[2] = '\0';
-        }
-        return;
+        }  
+        break;
     case 8:
-        
+        result = malloc(strlen(r64name) + 1);
+        if (result == NULL){
+            fprintf(stderr, "Allocation error\n");
+            exit(-1);
+        }
         for(i = 0; i < strlen(r64name); i++)
             result[i] = r64name[i];
         result[++i] = '\0';
-        return;
+        break;;
     default:
         fprintf(stderr, "Error converting register name: function works only with 1 and 4 byte registers, got : %ld\n", size);
         exit(-1);
     }
+    return result;
 }
 
 /// @brief returns a Memory Call for given idExpr (simple variable access or field)
@@ -170,14 +206,15 @@ static void compile_expr(Node* expr, char* result_register){
         // variable / struct field access
         MemoryCall mem_c = getMemoryCall(expr);
         //later consider checking size for r10-r15 registers
-        char register_name[4];
-        transform_register(result_register ? result_register : "rax", mem_c.size, register_name);
+        char* register_name;
+        char* reg = result_register ? result_register : "rax";
+        register_name = transform_register(reg, mem_c.size);
         fprintf(asmb, "mov %s, %s [%s]\n",
             register_name,
             mem_c.size == 4 ? "dword" : "byte", //for now only char and int
             mem_c.memory_call);
         free(mem_c.memory_call);
-
+        free(register_name);
         return;
     }
 
@@ -217,6 +254,86 @@ static void compile_expr(Node* expr, char* result_register){
                 fprintf(asmb, "idiv rbx\n");
                 fprintf(asmb, "mov rax, rdx\n");
                 break;
+            case '!': {  //!=
+                char neLabel[LABEL_NAME_SIZE + 1], endCompLabel[LABEL_NAME_SIZE + 1];
+                get_random_label_name(neLabel); get_random_label_name(endCompLabel);
+                fprintf(asmb,
+                    "cmp rax, rbx\n"
+                    "jne %s\n"
+                    "mov rax, 0\n"
+                    "jmp %s\n"
+                    "%s:\n"
+                    "mov rax, 1\n"
+                    "%s:\n", neLabel, endCompLabel, neLabel, endCompLabel);
+                break;
+            }
+            case '=': {  //==
+                char eqLabel[LABEL_NAME_SIZE + 1], endCompLabel[LABEL_NAME_SIZE + 1];
+                get_random_label_name(eqLabel); get_random_label_name(endCompLabel);
+                fprintf(asmb,
+                    "cmp rax, rbx\n"
+                    "je %s\n"
+                    "mov rax, 0\n"
+                    "jmp %s\n"
+                    "%s:\n"
+                    "mov rax, 1\n"
+                    "%s:\n", eqLabel, endCompLabel, eqLabel, endCompLabel);
+                break;
+            }
+            case '>': {
+                // Check for >= (second char is '=')
+                if (expr->label.value.id[1] == '=') {
+                    char geLabel[LABEL_NAME_SIZE + 1], endCompLabel[LABEL_NAME_SIZE + 1];
+                    get_random_label_name(geLabel); get_random_label_name(endCompLabel);
+                    fprintf(asmb,
+                        "cmp rax, rbx\n"
+                        "jge %s\n"
+                        "mov rax, 0\n"
+                        "jmp %s\n"
+                        "%s:\n"
+                        "mov rax, 1\n"
+                        "%s:\n", geLabel, endCompLabel, geLabel, endCompLabel);
+                } else {
+                    char gtLabel[LABEL_NAME_SIZE + 1], endCompLabel[LABEL_NAME_SIZE + 1];
+                    get_random_label_name(gtLabel); get_random_label_name(endCompLabel);
+                    fprintf(asmb,
+                        "cmp rax, rbx\n"
+                        "jg %s\n"
+                        "mov rax, 0\n"
+                        "jmp %s\n"
+                        "%s:\n"
+                        "mov rax, 1\n"
+                        "%s:\n", gtLabel, endCompLabel, gtLabel, endCompLabel);
+                }
+                break;
+            }
+            case '<': {
+                // Check for <= (second char is '=')
+                if (expr->label.value.id[1] == '=') {
+                    char leLabel[LABEL_NAME_SIZE + 1], endCompLabel[LABEL_NAME_SIZE + 1];
+                    get_random_label_name(leLabel); get_random_label_name(endCompLabel);
+                    fprintf(asmb,
+                        "cmp rax, rbx\n"
+                        "jle %s\n"
+                        "mov rax, 0\n"
+                        "jmp %s\n"
+                        "%s:\n"
+                        "mov rax, 1\n"
+                        "%s:\n", leLabel, endCompLabel, leLabel, endCompLabel);
+                } else {
+                    char ltLabel[LABEL_NAME_SIZE + 1], endCompLabel[LABEL_NAME_SIZE + 1];
+                    get_random_label_name(ltLabel); get_random_label_name(endCompLabel);
+                    fprintf(asmb,
+                        "cmp rax, rbx\n"
+                        "jl %s\n"
+                        "mov rax, 0\n"
+                        "jmp %s\n"
+                        "%s:\n"
+                        "mov rax, 1\n"
+                        "%s:\n", ltLabel, endCompLabel, ltLabel, endCompLabel);
+                }
+                break;
+            }
             }
             if (result_register){
                 fprintf(asmb, "mov %s, rax\n", result_register);
@@ -227,7 +344,46 @@ static void compile_expr(Node* expr, char* result_register){
     }
     // AND, OR, NOT operators
     if (expr->label.type == KEYWORD) {
+        Node* op1 = expr->firstChild;
         
+        if (expr->label.value.label == Not){
+            compile_expr(op1, NULL);
+            fprintf(asmb,"not rax\n");
+        }else{
+            Node* op2 = expr->firstChild->nextSibling;
+            //result of first operand -> rax
+            compile_expr(op2, NULL);
+            fprintf(asmb, "push rax\n");
+            //result of second -> rbx
+            compile_expr(op1, NULL);
+            fprintf(asmb, "pop rbx\n");
+            switch (expr->label.value.label)
+            {
+                case And:
+                    fprintf(asmb, "and rax, rbx\n");
+                    break;
+                case Or:
+                    fprintf(asmb, "or rax, rbx\n");
+                    break;
+                default:
+                    fprintf(stderr, "Unknown boolean operator: %s", getTreeLabelName(expr->label.value.label));
+                    exit(-1);
+            }
+            
+            
+        }
+        //restrict results to one and zero
+        char labelName[LABEL_NAME_SIZE + 1];
+        get_random_label_name(labelName);
+        fprintf(asmb, 
+                "cmp rax, 0\n"
+                "je %s\n"
+                "mov rax, 1\n"
+                "%s:\n", labelName, labelName);
+        if (result_register){
+            fprintf(asmb, "mov %s, rax\n", result_register);
+        }
+        return;
     }
 
     // if still don't return
@@ -248,29 +404,56 @@ static void compile_instr(Node* instr){
                     compile_expr(kw->firstChild, "rdi"); // exit code value
                     fprintf(asmb, "mov rax, 60\nsyscall\n");
                 }else{
-                    // mov rdi, %return_value
+                    // mov rax, %return_value
                     // ret
                 }
                 break;
             }
             case If: {
                 Node* cond = kw->firstChild;
-                Node* thenInstr = cond ? cond->nextSibling : NULL;
-                //compile if block
-
-                // Check for else block
+                Node* thenInstr = cond->nextSibling;
                 Node* elseNode = kw->nextSibling;
+                //compile condition evaluation
+                compile_expr(cond, NULL);
                 if (elseNode && elseNode->label.type == KEYWORD && elseNode->label.value.label == Else) {
-                    //compile else
+                    //if - else
+                    char endIfLabel[LABEL_NAME_SIZE + 1], elseLabel[LABEL_NAME_SIZE + 1];
+                    get_random_label_name(endIfLabel); get_random_label_name(elseLabel);
+                    fprintf(asmb, "cmp rax, 0\n"
+                        "je %s\n", elseLabel);
+                    compile_instr(thenInstr);
+                    fprintf(asmb, "jmp %s\n"
+                        "%s:\n", endIfLabel, elseLabel);
+                    compile_instr(elseNode->firstChild);
+                    fprintf(asmb, "%s:\n", endIfLabel);
+                }else{
+                    //no else block
+                    char endIfLabel[LABEL_NAME_SIZE + 1];
+                    get_random_label_name(endIfLabel);
+                    fprintf(asmb, "cmp rax, 0\n"
+                        "je %s\n", endIfLabel);
+                    compile_instr(thenInstr);
+                    fprintf(asmb, "%s:\n", endIfLabel);
                 }
                 break;
             }
             case While: {
-                // compile while
+                Node* cond = kw->firstChild;
+                Node* bodyInstr = cond ? cond->nextSibling : NULL;
+                char conditionLabel[LABEL_NAME_SIZE + 1],
+                     endWhileLabel[LABEL_NAME_SIZE + 1];
+                get_random_label_name(conditionLabel); get_random_label_name(endWhileLabel);
+                fprintf(asmb, "%s:\n", conditionLabel);
+                compile_expr(cond, NULL);
+                fprintf(asmb, "cmp rax, 0\n"
+                    "je %s\n", endWhileLabel);
+                compile_instr(bodyInstr);
+                fprintf(asmb, "jmp %s\n"
+                    "%s:\n", conditionLabel, endWhileLabel);
                 break;
             }
             case SuiteInstr:
-                Node* curInstr = instr -> firstChild;
+                Node* curInstr = kw -> firstChild;
                 while (curInstr != NULL)
                 {
                     compile_instr(curInstr);
@@ -278,9 +461,9 @@ static void compile_instr(Node* instr){
                 }
                 break;
             default:
-                fprintf(stderr, "Compile error: unknown keyword %s",
+                fprintf(stderr, "Compile error: unknown keyword %s\n",
                     getTreeLabelName(kw->label.value.label));
-                exit(2);
+                exit(-1);
         }
         return;
     }
@@ -306,14 +489,18 @@ static void compile_instr(Node* instr){
         //now right hand is in rax
         MemoryCall mem_c = getMemoryCall(instr->firstChild);
 
-        char register_name[4];
-        transform_register("rax", mem_c.size, register_name);
-        
+        char* register_name;
+        char* reg = "rax";
+        register_name = transform_register(reg, mem_c.size);
+        printTree(instr->firstChild);
+        printf("Mem_size: %ld, register: %s\n", mem_c.size, register_name);
+
         fprintf(asmb, "mov %s [%s], %s\n",
             mem_c.size == 4 ? "dword" : "byte",
             mem_c.memory_call,
             register_name);
         free(mem_c.memory_call);
+        free(register_name);
         return;
     }
     fprintf(stderr, "Semantic analyser error: cannot analyse instruction");

@@ -11,7 +11,8 @@
 // todo: supress logs
 // todo: add lineno to each tree node (easy todo just in tree.c as linenum is extern)
 //          and add it to each error log (lots here, just one on grammar in yyerror())
-// todo: uncomment all exits
+// todo: maybe allow == and != between structs spead out like egality of all their fields
+//      (same with affectations) 
 
 Node* glob_vars;    //pointer to program's global VarDecl
 Node* glob_types[MAX_TYPES];    //global custom types (structs)
@@ -426,8 +427,7 @@ static char* check_type(Node* Exp, Node* localVars, Node** localtypes){
             if(!int_or_char(type1Op) || !int_or_char(type2Op)){
                 fprintf(stderr, "Operator %s cannot be used with arguments of type %s and %s\n",
                     Exp->label.value.id, type1Op, type2Op);
-                //uncomment on prod - exit(2)\n
-                return NULL;
+                exit(2);
             }
             return "int";
         }
@@ -527,12 +527,9 @@ static void analyseInst(Node* instr, Node* localVars, Node** localtypes, char* r
                 break;
             }
             case While: {
-                Node* cond = kw->nextSibling;
+                Node* cond = kw->firstChild;
                 Node* bodyInstr = cond ? cond->nextSibling : NULL;
-                if (!cond) {
-                    fprintf(stderr, "Semantic error: malformed while instruction\n");
-                    exit(2);
-                }
+                
                 char* condType = check_type(cond, localVars, localtypes);
                 if (!int_or_char(condType)) {
                     fprintf(stderr, "Semantic error: while condition must be int or char, got %s\n", condType);

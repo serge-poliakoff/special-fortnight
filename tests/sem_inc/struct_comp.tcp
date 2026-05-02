@@ -1,0 +1,10 @@
+int main(void){
+    struct r1{
+        int a, b;
+    };
+    struct r1 u, v;
+    while(u > v){
+        v.a = u.b;
+    }
+    return 0;
+}

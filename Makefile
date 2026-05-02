@@ -15,7 +15,7 @@ sem_tests: $(OBJ)/tree.o $(OBJ)/semantics.o $(OBJ)/semantic_tests.o $(OBJ)/varta
 #objects
 
 $(OBJ)/%.o: src/%.c
-	$(CC) $(CFLAGS) -I$(INC) -c $< -o $@
+	$(CC) $(CFLAGS) -I$(INC) -c $< -O0 -o $@
 
 $(OBJ)/lex.yy.o: src/lex.yy.c $(INC)/$(PARS).tab.h
 
