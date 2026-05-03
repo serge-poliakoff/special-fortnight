@@ -22,6 +22,8 @@ static char* cur_func_name;
 
 static VarTab global_vars;
 
+static char* params_regs[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+
 /// @brief writes a random name consisting of latters of LABEL_NAME_SIZE length (+1 for '\0')
 /// @param destination pointer to the first latter of name
 void get_random_label_name(char* destination){
@@ -110,7 +112,7 @@ static char* transform_register(char* r64name, size_t size){
         }
         for(i = 0; i < strlen(r64name); i++)
             result[i] = r64name[i];
-        result[++i] = '\0';
+        result[i] = '\0';
         break;;
     default:
         fprintf(stderr, "Error converting register name: function works only with 1 and 4 byte registers, got : %ld\n", size);
@@ -126,7 +128,9 @@ static char* transform_register(char* r64name, size_t size){
 static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
     char* var_id = idExpr -> label.value.id;
     
-    VarNode* var_node = get_var_node(var_id, global_vars);
+    //prefer local variable over global
+    VarNode* var_node = get_var_node(var_id, getVarTable(cur_func_name));
+    var_node = var_node ? var_node : get_var_node(var_id, global_vars);
     if (var_node == NULL){
         fprintf(stderr, "Variables %s cannot be found\n", var_id);
         exit(-1);
@@ -138,7 +142,7 @@ static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
         if (var_node -> addr_type == STATIC){
             sprintf(mem_call, "%s", var_id);
         }else{
-            sprintf(mem_call, "rbp%d", -1*var_node->addr);
+            sprintf(mem_call, "rbp - %d", var_node->addr + var_node -> size);
         }
         MemoryCall res = {mem_call, var_node->size};
         return res;
@@ -166,7 +170,7 @@ static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
     if (var_node -> addr_type == STATIC){
         sprintf(mem_call, "%s+%d", var_id, offset);
     }else{
-        sprintf(mem_call, "rbp-%d", offset);
+        sprintf(mem_call, "rbp - %d", offset);
     }
     MemoryCall res = {mem_call, field_node->size};
     return res;
@@ -471,9 +475,10 @@ static void compile_instr(Node* instr){
     if (instr->firstChild && instr->firstChild->nextSibling == NULL) {
         Node* callNode = instr->firstChild;
         Node* cur_arg = callNode->firstChild->firstChild;
+        int param_i = 0;
         while (cur_arg != NULL)
         {
-            compile_expr(cur_arg, "rdi");
+            compile_expr(cur_arg, params_regs[param_i++]);
             cur_arg = cur_arg -> nextSibling;
         }
         
@@ -492,8 +497,6 @@ static void compile_instr(Node* instr){
         char* register_name;
         char* reg = "rax";
         register_name = transform_register(reg, mem_c.size);
-        printTree(instr->firstChild);
-        printf("Mem_size: %ld, register: %s\n", mem_c.size, register_name);
 
         fprintf(asmb, "mov %s [%s], %s\n",
             mem_c.size == 4 ? "dword" : "byte",
@@ -508,12 +511,56 @@ static void compile_instr(Node* instr){
 }
 
 static void compile_func(Node* func){
+    //arranging stack pointer, giving space for local variables
+    if (strcmp(cur_func_name, "main") != 0){
+        fprintf(asmb, "%s:\n"
+            "push rbp\n", cur_func_name);
+    }
+    fprintf(asmb, "mov rbp, rsp\n");
     Node* local_vars = func->firstChild->nextSibling->firstChild;
+    VarTab local_vartab = getVarTable(cur_func_name);
+    size_t local_vars_stack_offset = 0;
+    for (int i = 0; i < local_vartab.size; i ++)
+        local_vars_stack_offset += local_vartab.vars[i].size;
+    if (local_vars_stack_offset > 0){
+        local_vars_stack_offset = local_vars_stack_offset / 8 + 1;
+        for (int i = 0; i < local_vars_stack_offset; i++)
+            fprintf(asmb, "push 0\n");
+    }
+
+    Node* cur_param = func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
+    if (cur_param -> label.type != KEYWORD){
+        //have parameters
+        int param_i = 0;
+        for (;cur_param != NULL; param_i++, cur_param = cur_param->nextSibling){
+            MemoryCall mem_c = getMemoryCall(cur_param->firstChild);
+
+            char* register_name;
+            register_name = transform_register(params_regs[param_i], mem_c.size);
+
+            fprintf(asmb, "mov %s [%s], %s\n",
+                mem_c.size == 4 ? "dword" : "byte",
+                mem_c.memory_call,
+                register_name);
+            free(mem_c.memory_call);
+            free(register_name);
+        }
+    }
+
     Node* curInstr = local_vars -> nextSibling -> firstChild;
     while (curInstr != NULL)
     {
         compile_instr(curInstr);
         curInstr = curInstr ->nextSibling;
+    }
+    if (local_vars_stack_offset > 0){
+        for (int i = 0; i < local_vars_stack_offset; i++)
+            fprintf(asmb, "pop r8\n");
+    }
+    if (strcmp(cur_func_name, "main") != 0){
+        fprintf(asmb,
+            "pop rbp\n"
+            "ret\n");
     }
 }
 
@@ -555,6 +602,22 @@ extern void compile(Node* prog){
             label.value.id;
         if (strcmp(cur_func_name, "main") == 0){
             fprintf(asmb, "global _start\nsection .text\n_start:\n");
+            compile_func(cur_func);
+        }
+
+        cur_func = cur_func -> nextSibling;
+    }
+
+    cur_func = functs->firstChild;
+    while (cur_func != NULL)
+    {
+        cur_func_name = cur_func ->
+            firstChild ->
+            firstChild ->
+            nextSibling ->
+            label.value.id;
+        if (strcmp(cur_func_name, "main") != 0){
+            
             compile_func(cur_func);
         }
 

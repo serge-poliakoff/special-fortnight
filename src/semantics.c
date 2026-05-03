@@ -658,8 +658,12 @@ static void analyse_func(Node* func){
 
     Node* local_vars = func->firstChild->nextSibling->firstChild;
 
-    //printf("Copying parameters to local vars: ");
+    
     param = paramsNode->firstChild;
+    Node* first_local_var = local_vars -> firstChild;   //and all its siblings due to the tree construction
+    local_vars->firstChild = NULL;
+    //we do that so that arguments would be at first place and so will have correct addresses
+    //when put directely on stack
     while (param)
     {
         if (param->label.type == TP){
@@ -667,6 +671,7 @@ static void analyse_func(Node* func){
         }
         param = param -> nextSibling;
     }
+    addChild(local_vars, first_local_var);
 
     Node* localtypes[MAX_TYPES];
     for(int i = 0; i < MAX_TYPES; i++) localtypes[i] = NULL;

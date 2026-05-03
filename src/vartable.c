@@ -128,10 +128,6 @@ void vartab_hashtable_free(VarTabHashTable* ht) {
             while (cur_s)
             {
                 StructListNode* next = cur_s -> next;
-                printf("Deallocation: struct %s\n", cur_s->struct_name);
-                printf("%p", cur_s -> fields);
-                printf("%p", cur_s -> fields->vars);
-                printf("%s - %ld",cur_s->fields->vars[0].id, cur_s->fields->vars[0].size);
                 free(cur_s->struct_name);
                 // if structures are nested, those fields will be deallocated
                 //  during deallocation for nested structures' declarations,
@@ -147,7 +143,6 @@ void vartab_hashtable_free(VarTabHashTable* ht) {
             free(node -> table);
             //free all structures
             
-            printf("Deallocation: structs proceeded\n");
             free(node);
             node = next;
         }
@@ -160,7 +155,6 @@ static VarTabHashTable* funcs_var_dict(){
     static VarTabHashTable *dict= NULL;
     if (dict == NULL){
         dict = vartab_hashtable_create();
-        printf("Func-vartable dictionary created\n");
     }
     return dict;
 }
@@ -291,6 +285,6 @@ extern StructListNode* getStructType(char* func_name, char* struct_name){
 }
 
 extern void freeVarTables(){
-    printf("Deallocating dictionnaries...\n");
+    
     vartab_hashtable_free(funcs_var_dict());
 }
