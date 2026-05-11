@@ -109,13 +109,14 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
 /// @param declVars pointer to VarDecl node
 /// @param typetable pointer to a preinitiallized type table of MAX_TYPES size (supposed initialized to all nulls)
 /// @param struct_flag 1 if analysing structure declaration, 0 if global/local variables
-static void analyse_variables(Node* declVars, Node** typetable, int struct_flag){
+static void analyse_variables(Node* declVars, Node** typetable, int struct_flag, int stack_params_count){
     if (!declVars) return;
     Node* cur = declVars->firstChild;
     int type_idx = 0;
 
+    //todo: for instance we are passing all parameters by stack, so stack_params_count = params_count
+    int arguments_on_stack = stack_params_count > 0;
     
-    // todo?: add parameter structure
 
     int vartab_size = 5, vartab_ind = 0, frame_offset = 0;
     VarNode* vartable = (VarNode*)malloc(sizeof(VarNode) * vartab_size);
@@ -167,9 +168,16 @@ static void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
                     // id is already its address
                 }else{
                     vartable[vartab_ind].addr_type = RELATIVE;
-                    vartable[vartab_ind].addr = frame_offset;
+                    vartable[vartab_ind].addr = vartab_ind < stack_params_count ? (-16 - frame_offset) : frame_offset;
                     //vartable[vartab_ind].addr = "rbp" - frame_offset;
-                    frame_offset += type_size;
+
+                    //todo: argument passed on stack - rbp + 16 + offset
+                    if (vartab_ind == stack_params_count - 1){
+                        
+                        frame_offset = 0;
+                    }else{
+                        frame_offset += type_size;
+                    }
                 }
                 vartable[vartab_ind].size = type_size;
                 // get type's data from corresponding typetable
@@ -196,7 +204,7 @@ static void analyse_variables(Node* declVars, Node** typetable, int struct_flag)
             // Add to typetable
             
             printf("Structure %s declaration found\n", struct_type->label.value.id);
-            analyse_variables(struct_type, typetable, 1);
+            analyse_variables(struct_type, typetable, 1, -1);
             typetable[type_idx++] = struct_type;
         }
     }
@@ -675,7 +683,7 @@ static void analyse_func(Node* func){
 
     Node* localtypes[MAX_TYPES];
     for(int i = 0; i < MAX_TYPES; i++) localtypes[i] = NULL;
-    analyse_variables(local_vars, localtypes, 0);
+    analyse_variables(local_vars, localtypes, 0, p_count);
     
     printf("analysing function %s: finished analysing variables\n", identNode->label.value.id);
 
@@ -699,7 +707,7 @@ extern void analyse_semantics(Node* tree){
     glob_vars = tree->firstChild;
     functs = tree->firstChild->nextSibling;
     for(int i = 0; i < MAX_TYPES; i++) glob_types[i] = NULL;
-    analyse_variables(glob_vars, glob_types, 0);
+    analyse_variables(glob_vars, glob_types, 0, -1);
 
     for(int i = 0; glob_types[i] != NULL; i++) printTree(glob_types[i]);
     /*printf("Semantics : printing functs tree \n");
