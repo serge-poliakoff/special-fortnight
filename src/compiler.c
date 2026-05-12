@@ -25,6 +25,9 @@ static Node* functs;
 
 static char* params_regs[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
+static void compile_expr(Node* expr, char* result_register);
+static void compile_instr(Node* instr);
+
 /// @brief writes a random name consisting of latters of LABEL_NAME_SIZE length (+1 for '\0')
 /// @param destination pointer to the first latter of name
 void get_random_label_name(char* destination){
@@ -187,6 +190,155 @@ static MemoryCall getMemoryCall(Node* idExpr){
     return res;
 }
 
+static void put_struct_on_stack(VarTab* fields, size_t baseoffset, Node* baseIdExpr){
+    for(int i = 0; i < fields->size; i++){
+        VarNode cur = fields->vars[i];
+
+        Node* last_child = baseIdExpr;
+        while (last_child->firstChild != NULL) last_child = last_child->firstChild;
+        Node nextChild;
+        nextChild.label.type = ID; nextChild.label.value.id = cur.id;
+        nextChild.firstChild = nextChild.nextSibling = NULL;
+        addChild(last_child, &nextChild);
+
+        if (cur.fields != NULL){
+
+            put_struct_on_stack(cur.fields, baseoffset + cur.addr, baseIdExpr);
+
+            last_child->firstChild = NULL;
+        }else{
+            switch (cur.size)
+            {
+            case 1:
+                compile_expr(baseIdExpr, NULL);
+                fprintf(asmb, "mov [rsp + %ld], al\n", baseoffset + cur.addr);
+                
+                last_child->firstChild = NULL;
+                break;
+            case 4:
+                compile_expr(baseIdExpr, NULL);
+                fprintf(asmb, "mov [rsp + %ld], eax\n", baseoffset + cur.addr);
+
+                last_child->firstChild = NULL;
+                break;
+            default:
+                fprintf(stderr, "Compile error: "
+                    "%s field have unknown base type with size %ld",
+                    cur.id, cur.size);
+                exit(-1);
+            }
+        }
+    }
+}
+
+static void compile_function_call(Node* callNode){
+    char* callee_name = callNode->label.value.id;
+    Node* cur_arg = callNode->firstChild->firstChild;
+        
+    size_t stack_total_size = 0;
+    int arg_count = 0;
+
+    // find function signature
+    Node* cur = functs->firstChild;
+    Node* found_func = NULL;
+    while (cur) {
+        // Each DeclFonct: firstChild is EnTeteFonct
+        Node* header = cur->firstChild;
+        if (header && header->firstChild && header->firstChild->nextSibling) {
+            Node* nameNode = header->firstChild->nextSibling;
+            if (nameNode->label.type == ID && strcmp(nameNode->label.value.id, callee_name) == 0) {
+                found_func = cur;
+                break;
+            }
+        }
+        cur = cur->nextSibling;
+    }
+
+    if (found_func == NULL){
+        printf("COMPILE LOG: function %s not found between declared (considering built-in)\n", callee_name);
+        //one of built-ins, put argument in rdi if exists
+        if (strcmp(callee_name, "getint") == 0 || strcmp(callee_name, "getchar") == 0){
+            //no arguments
+        }else{
+            compile_expr(cur_arg, "rdi");
+        }
+        fprintf(asmb, "call %s\n", callee_name);
+        return;
+    }
+    // First, count arguments and their size
+        
+    Node* tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
+        
+    while (tmp_arg) {
+        if (tmp_arg->label.type == KEYWORD){
+            printf("COMIPLER LOG: funciton call with no arguments\n");
+            break;
+        } //VOID
+        char* type_arg = tmp_arg->label.value.id;
+        if (strcmp(type_arg, "int")== 0){
+            stack_total_size += 4;
+        }else if (strcmp(type_arg, "char") == 0){
+            stack_total_size += 1;
+        }else{
+            StructListNode* struct_type = getStructType("global", type_arg);
+            stack_total_size += struct_type->size;
+        }
+        arg_count++;
+        tmp_arg = tmp_arg->nextSibling;
+    }
+    //here we will just simply move all the arguments on the stuck in the order of their appearence
+    //implementing this approcach is like moving all the calculations of arguments inside the called function
+    //so if we got to compile foo(bar(), 1)
+    //it will be something similar to
+    //void foo(){ arg1 = bar(); arg2 = 1; ...}
+    //so no problems with nested calls
+    //todo: aline stack on 16 bytes
+    fprintf(asmb,
+        "sub rsp, %ld\n", stack_total_size);
+    
+    printTree(callNode);
+    cur_arg = arg_count > 0 ? callNode->firstChild->firstChild : NULL;
+    printf("Compiler logs\n");
+    tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
+    printf("COMPILE LOGS: cur_arg of call to %s in %s\n", callee_name, cur_func_name);
+    if (cur_arg != NULL) printTree(cur_arg); else printf("No arguments\n");
+
+    size_t offset = 0;
+    while (cur_arg) {
+        char* type_arg = tmp_arg->label.value.id;
+        if (strcmp(type_arg, "int")== 0){
+              
+            compile_expr(cur_arg, NULL);
+            fprintf(asmb, "mov [rsp + %ld], eax\n", offset);
+            offset += 4;
+    
+        }else if (strcmp(type_arg, "char") == 0){
+            
+            compile_expr(cur_arg, NULL);
+            fprintf(asmb, "mov [rsp + %ld], al\n", offset);
+            offset += 1;
+        }else{
+            StructListNode* struct_type = getStructType("global", type_arg);
+            //copy struct on stack recursively
+            put_struct_on_stack(struct_type->fields,
+                offset, cur_arg);
+        }
+         
+        cur_arg = cur_arg->nextSibling;
+        tmp_arg = tmp_arg->nextSibling;
+    }
+        
+    fprintf(asmb, "call %s\n", callee_name);
+
+    // Clean up stack arguments after call
+    if (arg_count > 0) {
+        fprintf(asmb, "add rsp, %d\n", stack_total_size);
+    }
+        
+    // If function returns oversized struct, copy from returned pointer if needed
+    // (User should implement this logic as needed)
+}
+
 //rax, rbx and rdx can be suppressed by any instruction
 static void compile_expr(Node* expr, char* result_register){
     if (expr->label.type == INT){
@@ -208,11 +360,11 @@ static void compile_expr(Node* expr, char* result_register){
         if (child != NULL){
             if (child->label.type == KEYWORD && child->label.value.label == Arguments) {
                 // Function call
-                
+                fprintf(asmb, "push rbx\npush rcx\n");
                 //put arguments in rdi, rsi, rcx, r9 - 11, pushing each of them before update
-                fprintf(asmb, "call %s\n", expr->label.value.id);
+                compile_function_call(expr);
                 // make call
-
+                fprintf(asmb, "pop rcx\npop rbx\n");
                 //pop all registers, used for arguments
                 return;
             }
@@ -406,46 +558,7 @@ static void compile_expr(Node* expr, char* result_register){
     exit(3);
 }
 
-static void put_struct_on_stack(VarTab* fields, size_t baseoffset, Node* baseIdExpr){
-    for(int i = 0; i < fields->size; i++){
-        VarNode cur = fields->vars[i];
 
-        Node* last_child = baseIdExpr;
-        while (last_child->firstChild != NULL) last_child = last_child->firstChild;
-        Node nextChild;
-        nextChild.label.type = ID; nextChild.label.value.id = cur.id;
-        nextChild.firstChild = nextChild.nextSibling = NULL;
-        addChild(last_child, &nextChild);
-
-        if (cur.fields != NULL){
-
-            put_struct_on_stack(cur.fields, baseoffset + cur.addr, baseIdExpr);
-
-            last_child->firstChild = NULL;
-        }else{
-            switch (cur.size)
-            {
-            case 1:
-                compile_expr(baseIdExpr, NULL);
-                fprintf(asmb, "mov [rsp + %ld], al\n", baseoffset + cur.addr);
-                
-                last_child->firstChild = NULL;
-                break;
-            case 4:
-                compile_expr(baseIdExpr, NULL);
-                fprintf(asmb, "mov [rsp + %ld], eax\n", baseoffset + cur.addr);
-
-                last_child->firstChild = NULL;
-                break;
-            default:
-                fprintf(stderr, "Compile error: "
-                    "%s field have unknown base type with size %ld",
-                    cur.id, cur.size);
-                exit(-1);
-            }
-        }
-    }
-}
 
 static void compile_instr(Node* instr){
     if (!instr) return;
@@ -460,8 +573,8 @@ static void compile_instr(Node* instr){
                     compile_expr(kw->firstChild, "rdi"); // exit code value
                     fprintf(asmb, "mov rax, 60\nsyscall\n");
                 }else{
-                    // mov rax, %return_value
-                    // ret
+                    compile_expr(kw->firstChild, "rax");
+                    
                 }
                 break;
             }
@@ -525,113 +638,7 @@ static void compile_instr(Node* instr){
     }
     // Function call: single child
     if (instr->firstChild && instr->firstChild->nextSibling == NULL) {
-        Node* callNode = instr->firstChild;
-        char* callee_name = callNode->label.value.id;
-        Node* cur_arg = callNode->firstChild->firstChild;
-        
-        size_t stack_total_size = 0;
-        int arg_count = 0;
-
-        // find function signature
-        Node* cur = functs->firstChild;
-        Node* found_func = NULL;
-        while (cur) {
-            // Each DeclFonct: firstChild is EnTeteFonct
-            Node* header = cur->firstChild;
-            if (header && header->firstChild && header->firstChild->nextSibling) {
-                Node* nameNode = header->firstChild->nextSibling;
-                if (nameNode->label.type == ID && strcmp(nameNode->label.value.id, callee_name) == 0) {
-                    found_func = cur;
-                    break;
-                }
-            }
-            cur = cur->nextSibling;
-        }
-
-        if (found_func == NULL){
-            printf("COMPILE LOG: function %s not found between declared (considering built-in)\n", callee_name);
-            //one of built-ins, put argument in rdi if exists
-            if (strcmp(callee_name, "getint") == 0 || strcmp(callee_name, "getchar") == 0){
-                //no arguments
-            }else{
-                compile_expr(cur_arg, "rdi");
-            }
-            fprintf(asmb, "call %s\n", callee_name);
-            return;
-        }
-
-        // First, count arguments and their size
-        
-        Node* tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
-        
-        while (tmp_arg) {
-            if (tmp_arg->label.type == KEYWORD){
-                printf("COMIPLER LOG: funciton call with no arguments\n");
-                break;
-            } //VOID
-            char* type_arg = tmp_arg->label.value.id;
-            if (strcmp(type_arg, "int")== 0){
-                stack_total_size += 4;
-            }else if (strcmp(type_arg, "char") == 0){
-                stack_total_size += 1;
-            }else{
-                StructListNode* struct_type = getStructType("global", type_arg);
-                stack_total_size += struct_type->size;
-            }
-            arg_count++;
-            tmp_arg = tmp_arg->nextSibling;
-        }
-        //here we will just simply move all the arguments on the stuck in the order of their appearence
-        //implementing this approcach is like moving all the calculations of arguments inside the called function
-        //so if we got to compile foo(bar(), 1)
-        //it will be something similar to
-        //void foo(){ arg1 = bar(); arg2 = 1; ...}
-        //so no problems with nested calls
-
-        //todo: aline stack on 16 bytes
-        fprintf(asmb,
-            "sub rsp, %ld\n", stack_total_size);
-        
-        printTree(callNode);
-        cur_arg = arg_count > 0 ? callNode->firstChild->firstChild : NULL;
-        printf("Compiler logs\n");
-        tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
-        printf("COMPILE LOGS: cur_arg of call to %s in %s\n", callee_name, cur_func_name);
-        if (cur_arg != NULL) printTree(cur_arg); else printf("No arguments\n");
-
-        size_t offset = 0;
-        while (cur_arg) {
-            char* type_arg = tmp_arg->label.value.id;
-            if (strcmp(type_arg, "int")== 0){
-                
-                compile_expr(cur_arg, NULL);
-                fprintf(asmb, "mov [rsp + %ld], eax\n", offset);
-                offset += 4;
-            }else if (strcmp(type_arg, "char") == 0){
-                
-                compile_expr(cur_arg, NULL);
-                fprintf(asmb, "mov [rsp + %ld], al\n", offset);
-                offset += 1;
-            }else{
-                StructListNode* struct_type = getStructType("global", type_arg);
-                //copy struct on stack recursively
-                put_struct_on_stack(struct_type->fields,
-                    offset, cur_arg);
-            }
-            
-            cur_arg = cur_arg->nextSibling;
-            tmp_arg = tmp_arg->nextSibling;
-        }
-        
-        fprintf(asmb, "call %s\n", callee_name);
-
-        // Clean up stack arguments after call
-        if (arg_count > 0) {
-            fprintf(asmb, "add rsp, %d\n", stack_total_size);
-        }
-        
-        // If function returns oversized struct, copy from returned pointer if needed
-        // (User should implement this logic as needed)
+        compile_function_call(instr->firstChild);
 
         return;
     }
