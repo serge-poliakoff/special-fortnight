@@ -74,7 +74,7 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
     
 
     if (type == NULL){
-        fprintf(stderr, "Semantic error: undeclared variable %s\n", name);
+        fprintf(stderr, "Semantic error on line %d: undeclared variable %s\n", ident->lineno, name);
         exit(2);
     }
 
@@ -85,14 +85,14 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
         Node* typeNode = lookup_type_between(type, localtypes);
         typeNode = typeNode ? typeNode : lookup_type_between(type, glob_types);
         if (typeNode == NULL){
-            fprintf(stderr, "Semantic error: undeclared structure type %s\n", type);
+            fprintf(stderr, "Semantic error on line %d: undeclared structure type %s\n", field->lineno, type);
             exit(2);
         }
 
         char* type1 = lookup_var_type_between(field->label.value.id, typeNode);
         if (type1 == NULL){
-            fprintf(stderr, "Semantic error: field %s can't be found on %s\n",
-                field->label.value.id, type);
+            fprintf(stderr, "Semantic error on line %d: field %s can't be found on %s\n",
+                field->lineno, field->label.value.id, type);
             exit(2);
         }
 
@@ -112,6 +112,7 @@ static char* lookup_var_type(Node* ident, Node* localVars, Node** localtypes) {
 static void analyse_variables(Node* declVars, Node** typetable, int struct_flag, int stack_params_count){
     if (!declVars) return;
     Node* cur = declVars->firstChild;
+    
     int type_idx = 0;
 
     //todo: for instance we are passing all parameters by stack, so stack_params_count = params_count
@@ -143,8 +144,8 @@ static void analyse_variables(Node* declVars, Node** typetable, int struct_flag,
                     getStructType("global", type_name);
 
                 if (found_struct_type == NULL) {
-                    fprintf(stderr, "Semantic error: %s is declared with an undeclared type %s\n",
-                        cur->firstChild->label.value.id, type_name);
+                    fprintf(stderr, "Semantic error on line %d: %s is declared with an undeclared type %s\n",
+                        cur->firstChild->lineno, cur->firstChild->label.value.id, type_name);
                     exit(2);
                 }
                 
@@ -156,7 +157,7 @@ static void analyse_variables(Node* declVars, Node** typetable, int struct_flag,
                 // check repeating identifier error
                 for(int i = 0; i < vartab_ind; i++){
                     if (strcmp(varname, vartable[i].id) == 0){
-                        fprintf(stderr, "Sematic error: double identifier %s\n", varname);
+                        fprintf(stderr, "Semantic error on line %d: double identifier %s\n", cur_id_node->lineno, varname);
                         exit(2);
                     }
                 }
@@ -316,7 +317,7 @@ static char* check_function_call(Node* funcNode, Node* localVars, Node** localty
         builtin = 1;
     }
     if (!found_func) {
-        fprintf(stderr, "Semantic error: function '%s' not found\n", func_name);
+        fprintf(stderr, "Semantic error on line %d: function '%s' not found\n", funcNode->lineno, func_name);
         exit(2);
     }
 
@@ -333,7 +334,7 @@ static char* check_function_call(Node* funcNode, Node* localVars, Node** localty
         if (arguments->firstChild == NULL){
             return returnType;  // function's type
         }else{
-            fprintf(stderr, "Semantic error: function '%s' has no parameters\n", func_name);
+            fprintf(stderr, "Semantic error on line %d: function '%s' has no parameters\n", funcNode->lineno, func_name);
             exit(2);
         }
     }
@@ -350,22 +351,22 @@ static char* check_function_call(Node* funcNode, Node* localVars, Node** localty
         char* arg_type = check_type(arg, localVars, localtypes);
         if (strcmp(param_type, "int") == 0) {
             if (!int_or_char(arg_type)) {
-                fprintf(stderr, "Semantic error: argument %d of '%s' must be int or char, got %s\n", param_count+1, func_name, arg_type);
+                fprintf(stderr, "Semantic error on line %d: argument %d of '%s' must be int or char, got %s\n", arg->lineno, param_count+1, func_name, arg_type);
                 exit(2);
             }
         } else if (strcmp(param_type, "char") == 0) {
             if (strcmp(arg_type, "char") == 0) {
                 // ok
             } else if (strcmp(arg_type, "int") == 0) {
-                fprintf(stderr, "Warning: passing int to char parameter %d of '%s'\n", param_count+1, func_name);
+                fprintf(stderr, "Warning on line %d: passing int to char parameter %d of '%s'\n", arg->lineno, param_count+1, func_name);
             } else {
-                fprintf(stderr, "Semantic error: argument %d of '%s' must be char, got %s\n", param_count+1, func_name, arg_type);
+                fprintf(stderr, "Semantic error on line %d: argument %d of '%s' must be char, got %s\n", arg->lineno, param_count+1, func_name, arg_type);
                 exit(2);
             }
         } else {
             // struct or other type
             if (strcmp(param_type, arg_type) != 0) {
-                fprintf(stderr, "Semantic error: argument %d of '%s' must be %s, got %s\n", param_count+1, func_name, param_type, arg_type);
+                fprintf(stderr, "Semantic error on line %d: argument %d of '%s' must be %s, got %s\n", arg->lineno, param_count+1, func_name, param_type, arg_type);
                 exit(2);
             }
         }
@@ -377,7 +378,7 @@ static char* check_function_call(Node* funcNode, Node* localVars, Node** localty
 
     // Check for extra/missing arguments
     if (param || arg) {
-        fprintf(stderr, "Semantic error: function '%s' expects %d arguments, got %d\n", func_name, param_count + (param != NULL), arg_count + (arg != NULL));
+        fprintf(stderr, "Semantic error on line %d: function '%s' expects %d arguments, got %d\n", funcNode->lineno, func_name, param_count + (param != NULL), arg_count + (arg != NULL));
         exit(2);
     }
     
@@ -424,8 +425,8 @@ static char* check_type(Node* Exp, Node* localVars, Node** localtypes){
         if (type2Op == NULL){
             //unary - or +
             if (!int_or_char(type1Op)){
-                fprintf(stderr, "Operator %s cannot be used with argument of type %s\n",
-                    Exp->label.value.id, type1Op);
+                fprintf(stderr, "Semantic error on line %d: operator %s cannot be used with argument of type %s\n",
+                    Exp->lineno, Exp->label.value.id, type1Op);
                 //uncomment on prod - exit(2)\n
                 return NULL;
             }
@@ -433,8 +434,8 @@ static char* check_type(Node* Exp, Node* localVars, Node** localtypes){
         }else{
             //operator with to operands
             if(!int_or_char(type1Op) || !int_or_char(type2Op)){
-                fprintf(stderr, "Operator %s cannot be used with arguments of type %s and %s\n",
-                    Exp->label.value.id, type1Op, type2Op);
+                fprintf(stderr, "Semantic error on line %d: operator %s cannot be used with arguments of type %s and %s\n",
+                    Exp->lineno, Exp->label.value.id, type1Op, type2Op);
                 exit(2);
             }
             return "int";
@@ -457,7 +458,7 @@ static char* check_type(Node* Exp, Node* localVars, Node** localtypes){
     }*/
 
     // if still don't return
-    fprintf(stderr, "Semantic error: cannot deduce type\n");
+    fprintf(stderr, "Semantic error on line %d: cannot deduce type\n", Exp ? Exp->lineno : -1);
     //uncomment on prod - exit(2)\n
     return NULL;
 }
@@ -478,37 +479,37 @@ static void analyseInst(Node* instr, Node* localVars, Node** localtypes, char* r
                 if (returnType == NULL) {
                     // void function: should not return a value
                     if (retExpr) {
-                        fprintf(stderr, "Semantic error: void function should not return a value\n");
+                        fprintf(stderr, "Semantic error on line %d: void function should not return a value\n", kw->lineno);
                         exit(2);
                     }
                 } else {
                     if (!retExpr) {
-                        fprintf(stderr, "Semantic error: non-void function must return a value\n");
+                        fprintf(stderr, "Semantic error on line %d: non-void function must return a value\n", kw->lineno);
                         exit(2);
                     }
                     char* exprType = check_type(retExpr, localVars, localtypes);
                     // todo: remove in prod: check_type must throw itself if undeclared type
                     if (!exprType) {
-                        fprintf(stderr, "Semantic error: cannot deduce return expression type\n");
+                        fprintf(stderr, "Semantic error on line %d: cannot deduce return expression type\n", kw->lineno);
                         exit(2);
                     }
                     if (strcmp(returnType, "int") == 0) {
                         if (!int_or_char(exprType)) {
-                            fprintf(stderr, "Semantic error: return type must be int or char, got %s\n", exprType);
+                            fprintf(stderr, "Semantic error on line %d: return type must be int or char, got %s\n", kw->lineno, exprType);
                             exit(2);
                         }
                     } else if (strcmp(returnType, "char") == 0) {
                         if (strcmp(exprType, "char") == 0) {
                             // ok
                         } else if (strcmp(exprType, "int") == 0) {
-                            fprintf(stderr, "Warning: returning int from char function\n");
+                            fprintf(stderr, "Warning on line %d: returning int from char function\n", kw->lineno);
                         } else {
-                            fprintf(stderr, "Semantic error: return type must be char, got %s\n", exprType);
+                            fprintf(stderr, "Semantic error on line %d: return type must be char, got %s\n", kw->lineno, exprType);
                             exit(2);
                         }
                     } else {
                         if (strcmp(exprType, returnType) != 0) {
-                            fprintf(stderr, "Semantic error: return type must be %s, got %s\n", returnType, exprType);
+                            fprintf(stderr, "Semantic error on line %d: return type must be %s, got %s\n", kw->lineno, returnType, exprType);
                             exit(2);
                         }
                     }
@@ -521,7 +522,7 @@ static void analyseInst(Node* instr, Node* localVars, Node** localtypes, char* r
 
                 char* condType = check_type(cond, localVars, localtypes);
                 if (!int_or_char(condType)) {
-                    fprintf(stderr, "Semantic error: if condition must be int or char, got %s\n", condType);
+                    fprintf(stderr, "Semantic error on line %d: if condition must be int or char, got %s\n", kw->lineno, condType);
                     exit(2);
                 }
                 if (thenInstr)
@@ -540,7 +541,7 @@ static void analyseInst(Node* instr, Node* localVars, Node** localtypes, char* r
                 
                 char* condType = check_type(cond, localVars, localtypes);
                 if (!int_or_char(condType)) {
-                    fprintf(stderr, "Semantic error: while condition must be int or char, got %s\n", condType);
+                    fprintf(stderr, "Semantic error on line %d: while condition must be int or char, got %s\n", kw->lineno, condType);
                     exit(2);
                 }
                 if (bodyInstr) analyseInst(bodyInstr, localVars, localtypes, returnType);
@@ -576,33 +577,33 @@ static void analyseInst(Node* instr, Node* localVars, Node** localtypes, char* r
         char* rhsType = check_type(rhs, localVars, localtypes);
         // todo: remove in prod. - checkk_type must throw itself if type cannot be deduced
         if (!lhsType || !rhsType) {
-            fprintf(stderr, "Semantic error: cannot deduce type in assignment\n");
+            fprintf(stderr, "Semantic error on line %d: cannot deduce type in assignment\n", instr->lineno);
             exit(2);
         }
         if (strcmp(lhsType, "int") == 0) {
             if (!int_or_char(rhsType)) {
-                fprintf(stderr, "Semantic error: cannot assign %s to int variable\n", rhsType);
+                fprintf(stderr, "Semantic error on line %d: cannot assign %s to int variable\n", instr->lineno, rhsType);
                 exit(2);
             }
         } else if (strcmp(lhsType, "char") == 0) {
             if (strcmp(rhsType, "char") == 0) {
                 // ok
             } else if (strcmp(rhsType, "int") == 0) {
-                fprintf(stderr, "Warning: assigning int to char variable\n");
+                fprintf(stderr, "Warning on line %d: assigning int to char variable\n", instr->lineno);
             } else {
-                fprintf(stderr, "Semantic error: cannot assign %s to char variable\n", rhsType);
+                fprintf(stderr, "Semantic error on line %d: cannot assign %s to char variable\n", instr->lineno, rhsType);
                 exit(2);
             }
         } else {
             // struct or other type
             if (strcmp(lhsType, rhsType) != 0) {
-                fprintf(stderr, "Semantic error: cannot assign %s to %s variable\n", rhsType, lhsType);
+                fprintf(stderr, "Semantic error on line %d: cannot assign %s to %s variable\n", instr->lineno, rhsType, lhsType);
                 exit(2);
             }
         }
         return;
     }
-    fprintf(stderr, "Semantic analyser error: cannot analyse instruction");
+    fprintf(stderr, "Semantic analyser error on line %d: cannot analyse instruction\n", instr ? instr->lineno : -1);
     exit(2);
 }
 
@@ -627,8 +628,8 @@ static void analyse_func(Node* func){
         if (!int_or_char(retType)) {
             Node* found = lookup_type_between(retType, glob_types);
             if (!found) {
-                fprintf(stderr, "Semantic error: in function %s return type '%s' is undeclared\n",
-                    identNode->label.value.id, retType);
+                fprintf(stderr, "Semantic error on line %d: in function %s return type '%s' is undeclared\n",
+                    func->lineno, identNode->label.value.id, retType);
                 //exit(2);
                 return;
             }
@@ -645,9 +646,9 @@ static void analyse_func(Node* func){
             if (!int_or_char(paramType)) {
                 Node* found = lookup_type_between(paramType, glob_types);
                 if (!found) {
-                    fprintf(stderr, "Semantic error: in function %s parameter type '%s' is undeclared\n",
-                        identNode->label.value.id, paramType);
-                    //exit(2);
+                    fprintf(stderr, "Semantic error on line %d: in function %s parameter type '%s' is undeclared\n",
+                        func->lineno, identNode->label.value.id, paramType);
+                    exit(2);
                     return;
                 }
             }
@@ -658,7 +659,7 @@ static void analyse_func(Node* func){
 
     if (strcmp(cur_func_name, "main") == 0){
         if (p_count != 0 || strcmp(returnTypeNode->label.value.id, "int") != 0){
-            fprintf(stderr, "Semantic error: function main must return int and have no arguments\n");
+            fprintf(stderr, "Semantic error on line %d: function main must return int and have no arguments\n", func->lineno);
             exit(2);
         }
         have_main_func = 1;
@@ -683,6 +684,8 @@ static void analyse_func(Node* func){
 
     Node* localtypes[MAX_TYPES];
     for(int i = 0; i < MAX_TYPES; i++) localtypes[i] = NULL;
+    printf("[DEBUG]: analyse function %s's variables given it has %d parameters\n\n",
+        cur_func_name, p_count);
     analyse_variables(local_vars, localtypes, 0, p_count);
     
     printf("analysing function %s: finished analysing variables\n", identNode->label.value.id);
@@ -710,10 +713,7 @@ extern void analyse_semantics(Node* tree){
     analyse_variables(glob_vars, glob_types, 0, -1);
 
     for(int i = 0; glob_types[i] != NULL; i++) printTree(glob_types[i]);
-    /*printf("Semantics : printing functs tree \n");
-    printTree(functs);
-    printf("\n");*/
-    /* check for "int main" is present in the tree, stop if not*/
+    
 
     Node* cur_func = functs->firstChild; //current "DeclFonct" node
     while (cur_func != NULL)

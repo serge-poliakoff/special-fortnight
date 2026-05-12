@@ -84,8 +84,9 @@ static char* transform_register(char* r64name, size_t size){
             }
             result[0] = r64name[1];
             result[1] = 'i'; result[2] = 'l'; result[3] = '\0';
-        }else if(result[1] >= '0' && result[2] <= '9'){
+        }else if(r64name[1] >= '0' && r64name[1] <= '9'){
             //r8-r15
+            
             result = malloc(strlen(r64name) + 2);
             if (result == NULL){
                 fprintf(stderr, "Allocation error\n");
@@ -94,6 +95,7 @@ static char* transform_register(char* r64name, size_t size){
             for (i = 0; i < strlen(r64name); i++)
                 result[i] = r64name[i]; 
             result[i++] = 'b'; result[i] = '\0';
+            
         }else{
             //rax, rbx, rcx...
             result = malloc(3);
@@ -126,7 +128,7 @@ static char* transform_register(char* r64name, size_t size){
 /// @param idExpr 
 /// @return char* memory_call - an adress of given field/variable (to be surrounded with []), size - size of variable in bytes
 /// @attention char* memory_call is to be freed manually
-static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
+static MemoryCall getMemoryCall(Node* idExpr){
     char* var_id = idExpr -> label.value.id;
     
     //prefer local variable over global
@@ -151,8 +153,11 @@ static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
         MemoryCall res = {mem_call, var_node->size};
         return res;
     }
+
     //field access
-    int is_param_on_stack = var_node -> addr > 0 ? 1 : -1;
+    int is_param_on_stack = var_node -> addr >= 0 ? 0 : 1;
+    printTree(idExpr);
+    printf("COMPILE LOGS: %s stack\n", is_param_on_stack ? "On" : "Not on");
     int offset  = 0;
     Node* field = idExpr->firstChild;
     VarTab* parentFieldsTab = var_node->fields;
@@ -175,8 +180,8 @@ static MemoryCall getMemoryCall(Node* idExpr/*, VarTab localvars*/){
         sprintf(mem_call, "%s+%d", var_id, offset);
     }else{
         //negative offset for arguments pushed on caller's stack
-        sprintf(mem_call, "rbp %c %d", !is_param_on_stack ? '-' : '+',
-            !is_param_on_stack ? offset : (-1 * (-offset + var_node->addr)));
+        sprintf(mem_call, "rbp %c %d", is_param_on_stack ? '+' : '-',
+            is_param_on_stack ? (offset + -var_node->addr) : offset);
     }
     MemoryCall res = {mem_call, field_node->size};
     return res;
@@ -556,8 +561,14 @@ static void compile_instr(Node* instr){
         }
 
         // First, count arguments and their size
+        
         Node* tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
+        
         while (tmp_arg) {
+            if (tmp_arg->label.type == KEYWORD){
+                printf("COMIPLER LOG: funciton call with no arguments\n");
+                break;
+            } //VOID
             char* type_arg = tmp_arg->label.value.id;
             if (strcmp(type_arg, "int")== 0){
                 stack_total_size += 4;
@@ -581,10 +592,12 @@ static void compile_instr(Node* instr){
         fprintf(asmb,
             "sub rsp, %ld\n", stack_total_size);
         
-        cur_arg = callNode->firstChild->firstChild;
+        printTree(callNode);
+        cur_arg = arg_count > 0 ? callNode->firstChild->firstChild : NULL;
+        printf("Compiler logs\n");
         tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
-        printf("COMPILE LOGS: cur_arg of call to %s in %s", callee_name, cur_func_name);
-        printTree(cur_arg);
+        printf("COMPILE LOGS: cur_arg of call to %s in %s\n", callee_name, cur_func_name);
+        if (cur_arg != NULL) printTree(cur_arg); else printf("No arguments\n");
 
         size_t offset = 0;
         while (cur_arg) {
@@ -652,21 +665,11 @@ static void compile_func(Node* func){
             "push rbp\n", cur_func_name);
     }
     fprintf(asmb, "mov rbp, rsp\n");
-    
-    if (strcmp(cur_func_name, "main") == 0){
-        fprintf(asmb, "mov rbp, rsp\n");
-    }
 
     Node* local_vars = func->firstChild->nextSibling->firstChild;
     VarTab local_vartab = getVarTable(cur_func_name);
     size_t local_vars_stack_offset = 0;
-    /*for (int i = 0; i < local_vartab.size; i ++)
-        local_vars_stack_offset += local_vartab.vars[i].size;
-    if (local_vars_stack_offset > 0){
-        local_vars_stack_offset = local_vars_stack_offset / 8 + 1;
-        for (int i = 0; i < local_vars_stack_offset; i++)
-            fprintf(asmb, "push 0\n");
-    }*/
+    
 
     Node* cur_param = func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
     //as parameters are already on stack, we don't need to allocate space for them
@@ -709,11 +712,12 @@ extern void compile(Node* prog){
         exit(-1);
     }
     
-    printTree(prog);
+    //printTree(prog);
 
     functs = prog->firstChild->nextSibling;
 
     asmb = fopen("_anonymous.asm", "w");
+
 
     // static allocation
     global_vars = getVarTable("global");
@@ -733,6 +737,8 @@ extern void compile(Node* prog){
         "global putint\n");
     Node* functs = prog->firstChild->nextSibling;
     
+    printf("COMPILE LOGS: static allocation done, starting compiling functions\n");
+
     Node* cur_func = functs->firstChild; //current "DeclFonct" node
     while (cur_func != NULL)
     {
@@ -742,6 +748,8 @@ extern void compile(Node* prog){
             nextSibling ->
             label.value.id;
         if (strcmp(cur_func_name, "main") == 0){
+            printf("COMPILE LOGS: start compiling function %s\n", cur_func_name);
+
             fprintf(asmb, "global _start\nsection .text\n_start:\n");
             compile_func(cur_func);
         }
@@ -758,7 +766,8 @@ extern void compile(Node* prog){
             nextSibling ->
             label.value.id;
         if (strcmp(cur_func_name, "main") != 0){
-            
+            printf("COMPILE LOGS: start compiling function %s\n", cur_func_name);
+
             compile_func(cur_func);
         }
 

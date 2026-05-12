@@ -1,0 +1,7 @@
+int invalid(int param1, struct a param2){
+    return 0;
+}
+
+int main(void){
+    return 1;
+}
