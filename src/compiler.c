@@ -13,6 +13,7 @@
 typedef struct {
     char* memory_call;
     size_t size;
+    size_t offset;
 } MemoryCall;
 
 /// @brief file to which we will write assembler code
@@ -128,10 +129,11 @@ static char* transform_register(char* r64name, size_t size){
 }
 
 /// @brief returns a Memory Call for given idExpr (simple variable access or field)
-/// @param idExpr 
+/// @param idExpr
+/// @param split_offset if non-zero, in mem_call contains base adress without offset. Helpfull if passing address as variable
 /// @return char* memory_call - an adress of given field/variable (to be surrounded with []), size - size of variable in bytes
 /// @attention char* memory_call is to be freed manually
-static MemoryCall getMemoryCall(Node* idExpr){
+static MemoryCall getMemoryCall(Node* idExpr, int split_offset){
     char* var_id = idExpr -> label.value.id;
     
     //prefer local variable over global
@@ -145,15 +147,24 @@ static MemoryCall getMemoryCall(Node* idExpr){
     char* mem_call = malloc(mem_call_size); 
     // just variable access, no fields
     if (idExpr->firstChild == NULL){
+        MemoryCall res = {mem_call, var_node->size, 0};
         if (var_node -> addr_type == STATIC){
             sprintf(mem_call, "%s", var_id);
+            //offset is 0
         }else{
-            if (var_node->addr >= 0)
-                sprintf(mem_call, "rbp - %d", var_node->addr + var_node -> size);
-            else
-                sprintf(mem_call, "rbp + %d", -var_node->addr);
+            if (!split_offset){
+                if (var_node->addr >= 0)
+                    sprintf(mem_call, "rbp - %d", var_node->addr + var_node -> size);
+                else
+                    sprintf(mem_call, "rbp + %d", -var_node->addr);
+            }else{
+                sprintf(mem_call, "rbp");
+                res.offset = var_node->addr >= 0 ?
+                    -var_node->addr - var_node -> size :
+                    -var_node->addr;
+            }
         }
-        MemoryCall res = {mem_call, var_node->size};
+        
         return res;
     }
 
@@ -179,14 +190,28 @@ static MemoryCall getMemoryCall(Node* idExpr){
         parentFieldsTab = field_node->fields;
     }
 
+    MemoryCall res = {mem_call, field_node->size, 0};
     if (var_node -> addr_type == STATIC){
-        sprintf(mem_call, "%s+%d", var_id, offset);
+        if (split_offset)
+            sprintf(mem_call, "%s", var_id);
+        else
+            sprintf(mem_call, "%s-%d", var_id, offset - field_node->size);
+        res.offset = offset - field_node->size;
     }else{
-        //negative offset for arguments pushed on caller's stack
-        sprintf(mem_call, "rbp %c %d", is_param_on_stack ? '+' : '-',
-            is_param_on_stack ? (offset + -var_node->addr) : offset);
+        if (split_offset){
+            sprintf(mem_call, "rbp");
+            res.offset = is_param_on_stack ?
+                (offset + -var_node->addr)
+                : -offset;
+        }else{
+            //negative offset for arguments pushed on caller's stack
+            sprintf(mem_call, "rbp %c %d", is_param_on_stack ? '+' : '-',
+                is_param_on_stack ? (offset + -var_node->addr) : 
+                    (var_node->addr + offset + field_node->size));
+            
+        }
     }
-    MemoryCall res = {mem_call, field_node->size};
+    
     return res;
 }
 
@@ -231,7 +256,57 @@ static void put_struct_on_stack(VarTab* fields, size_t baseoffset, Node* baseIdE
     }
 }
 
-static void compile_function_call(Node* callNode){
+/// @brief copies values of struct from a struct adress of which is in rax
+/// @param fields fields of current struct
+/// @param baseoffset 0, argument for recursive calls
+/// @param baseIdExpr node of destination struct
+static void copy_struct_values(VarTab* fields, size_t baseoffset, Node* baseIdExpr){
+    for(int i = 0; i < fields->size; i++){
+        VarNode cur = fields->vars[i];
+
+        Node* last_child = baseIdExpr;
+        while (last_child->firstChild != NULL) last_child = last_child->firstChild;
+        Node nextChild;
+        nextChild.label.type = ID; nextChild.label.value.id = cur.id;
+        nextChild.firstChild = nextChild.nextSibling = NULL;
+        addChild(last_child, &nextChild);
+
+        if (cur.fields != NULL){
+
+            copy_struct_values(cur.fields, baseoffset + cur.addr, baseIdExpr);
+
+            last_child->firstChild = NULL;
+        }else{
+            //memory call to current field
+            MemoryCall mem_c = getMemoryCall(baseIdExpr, 0);
+            
+            switch (cur.size)
+            {
+            case 1:
+                fprintf(asmb, "mov bl, [rax - %ld]\n", baseoffset + cur.addr + 1);
+                fprintf(asmb, "mov [%s], bl\n", mem_c.memory_call);
+                break;
+            case 4:
+                fprintf(asmb, "mov ebx, [rax - %ld]\n", baseoffset + cur.addr + 4);
+                fprintf(asmb, "mov [%s], ebx\n", mem_c.memory_call);
+                break;
+            default:
+                fprintf(stderr, "Compile error: "
+                    "%s field have unknown base type with size %ld",
+                    cur.id, cur.size);
+                exit(-1);
+            }
+
+            free(mem_c.memory_call);
+            last_child->firstChild = NULL;
+        }
+    }
+}
+
+/// @brief compiles a function call to a given function, pushing and popping volatile registers
+/// @param callNode node of function call (one with Arguments as first child)
+/// @param result_register 64bit register to put return value, NULL for rax
+static void compile_function_call(Node* callNode, char* result_register){
     char* callee_name = callNode->label.value.id;
     Node* cur_arg = callNode->firstChild->firstChild;
         
@@ -255,7 +330,7 @@ static void compile_function_call(Node* callNode){
     }
 
     if (found_func == NULL){
-        printf("COMPILE LOG: function %s not found between declared (considering built-in)\n", callee_name);
+        //printf("COMPILE LOG: function %s not found between declared (considering built-in)\n", callee_name);
         //one of built-ins, put argument in rdi if exists
         if (strcmp(callee_name, "getint") == 0 || strcmp(callee_name, "getchar") == 0){
             //no arguments
@@ -271,7 +346,7 @@ static void compile_function_call(Node* callNode){
         
     while (tmp_arg) {
         if (tmp_arg->label.type == KEYWORD){
-            printf("COMIPLER LOG: funciton call with no arguments\n");
+            //printf("COMIPLER LOG: funciton call with no arguments\n");
             break;
         } //VOID
         char* type_arg = tmp_arg->label.value.id;
@@ -293,15 +368,23 @@ static void compile_function_call(Node* callNode){
     //void foo(){ arg1 = bar(); arg2 = 1; ...}
     //so no problems with nested calls
     //todo: aline stack on 16 bytes
-    fprintf(asmb,
-        "sub rsp, %ld\n", stack_total_size);
     
-    printTree(callNode);
     cur_arg = arg_count > 0 ? callNode->firstChild->firstChild : NULL;
-    printf("Compiler logs\n");
+    
     tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
-    printf("COMPILE LOGS: cur_arg of call to %s in %s\n", callee_name, cur_func_name);
-    if (cur_arg != NULL) printTree(cur_arg); else printf("No arguments\n");
+    
+    //todo: hidden pointer if function returns struct
+    char* returning_type = found_func->firstChild->firstChild->label.value.id;
+    size_t return_size_aligned = 0;
+    if (strcmp(returning_type, "int") == 0 | strcmp(returning_type, "char") == 0){
+        //pass
+    }else{
+        //allocate memory for return struct
+        StructListNode *ret_snode = getStructType("global", returning_type);
+        return_size_aligned = (ret_snode->size + 15) / 16 * 16;
+        fprintf(asmb, "sub rsp, %ld\n", return_size_aligned);
+        //adress rsp - retrun_size_aligned will be passed to funciton via rdi
+    }
 
     size_t offset = 0;
     while (cur_arg) {
@@ -322,19 +405,40 @@ static void compile_function_call(Node* callNode){
             //copy struct on stack recursively
             put_struct_on_stack(struct_type->fields,
                 offset, cur_arg);
+            offset += struct_type->size;
         }
          
         cur_arg = cur_arg->nextSibling;
         tmp_arg = tmp_arg->nextSibling;
     }
-        
+    if (return_size_aligned > 0){
+        //returning struct -> save address in rdi
+        fprintf(asmb, "mov rdi, rsp\n"
+            "add rdi, %ld", return_size_aligned);
+    }
+    fprintf(asmb, "sub rsp, %d\n", offset);
     fprintf(asmb, "call %s\n", callee_name);
 
     // Clean up stack arguments after call
     if (arg_count > 0) {
         fprintf(asmb, "add rsp, %d\n", stack_total_size);
     }
-        
+    
+    if (result_register){
+        if (strcmp(returning_type, "int") == 0){
+            char* register_name = transform_register(result_register, 4);
+            fprintf(asmb, "mov %s, eax\n", register_name);
+            free(register_name);
+        }else if (strcmp(returning_type, "char") == 0){
+            char* register_name = transform_register(result_register, 1);
+            fprintf(asmb, "mov %s, al\n", register_name);
+            free(register_name);
+        }else{
+            //address of struct
+            fprintf(asmb, "mov %s, rax\n", result_register);
+        }
+    }
+
     // If function returns oversized struct, copy from returned pointer if needed
     // (User should implement this logic as needed)
 }
@@ -359,20 +463,28 @@ static void compile_expr(Node* expr, char* result_register){
         // If function call: has Arguments child
         if (child != NULL){
             if (child->label.type == KEYWORD && child->label.value.label == Arguments) {
-                // Function call
-                fprintf(asmb, "push rbx\npush rcx\n");
-                //put arguments in rdi, rsi, rcx, r9 - 11, pushing each of them before update
-                compile_function_call(expr);
-                // make call
-                fprintf(asmb, "pop rcx\npop rbx\n");
-                //pop all registers, used for arguments
+                compile_function_call(expr, result_register);
                 return;
             }
             // structs are treated in getMemoryCall
         }
         // variable / struct field access
-        MemoryCall mem_c = getMemoryCall(expr);
-        //later consider checking size for r10-r15 registers
+        MemoryCall mem_c = getMemoryCall(expr, 0);
+
+        if (mem_c.size != 1 && mem_c.size != 4){
+            //split mem_c on register/static_name and offset
+            free(mem_c.memory_call);
+            mem_c = getMemoryCall(expr, 1);
+            //stuct type -> copy address
+            fprintf(asmb, "mov rax, %s\n",
+                mem_c.memory_call);
+            fprintf(asmb, "add rax, %ld\n",
+                mem_c.offset + mem_c.size);
+
+            free(mem_c.memory_call);
+            return;
+        }
+
         char* register_name;
         char* reg = result_register ? result_register : "rax";
         register_name = transform_register(reg, mem_c.size);
@@ -558,8 +670,6 @@ static void compile_expr(Node* expr, char* result_register){
     exit(3);
 }
 
-
-
 static void compile_instr(Node* instr){
     if (!instr) return;
     // Handle keyword instructions first
@@ -573,8 +683,13 @@ static void compile_instr(Node* instr){
                     compile_expr(kw->firstChild, "rdi"); // exit code value
                     fprintf(asmb, "mov rax, 60\nsyscall\n");
                 }else{
-                    compile_expr(kw->firstChild, "rax");
-                    
+                    compile_expr(kw->firstChild, NULL);
+
+                    //todo: if struct
+                    //fprintf(asmb, "pop rdi\n");
+                    //copy to rdi
+                    //fprintf(asmb, "mov rax, rdi\n");
+                    //ret and all stack reestablishing is in compile_func
                 }
                 break;
             }
@@ -638,16 +753,40 @@ static void compile_instr(Node* instr){
     }
     // Function call: single child
     if (instr->firstChild && instr->firstChild->nextSibling == NULL) {
-        compile_function_call(instr->firstChild);
-
+        compile_function_call(instr->firstChild, NULL);
         return;
     }
     // Variable/field assignment: two children
     if (instr->firstChild && instr->firstChild->nextSibling) {
+
+        //check if it is a structure copying
+        // Descend all children of the first assignment operand to get the deepest VarNode
+        Node* lhs_node = instr->firstChild;
+        VarNode* dest_var_node = NULL;
+        VarTab cur_tab = getVarTable(cur_func_name);
+        VarTab global_tab = getVarTable("global");
+        dest_var_node = get_var_node(lhs_node->label.value.id, cur_tab);
+        dest_var_node = dest_var_node ? dest_var_node : get_var_node(lhs_node->label.value.id, global_tab);
+        Node* descend = lhs_node->firstChild;
+        while (descend && dest_var_node && dest_var_node->fields) {
+            dest_var_node = get_var_node(descend->label.value.id, *dest_var_node->fields);
+            descend = descend->firstChild;
+        }
+
+        if (dest_var_node && dest_var_node->fields != NULL){
+            //struct copying
+
+            //copy address of source struct to rax
+            compile_expr(instr->firstChild->nextSibling, NULL);
+            //copy field by field recursively
+            copy_struct_values(dest_var_node->fields, 0, lhs_node);
+            return;
+        }
+
         compile_expr(instr->firstChild->nextSibling, NULL);
 
         //now right hand is in rax
-        MemoryCall mem_c = getMemoryCall(instr->firstChild);
+        MemoryCall mem_c = getMemoryCall(instr->firstChild, 0);
 
         char* register_name;
         char* reg = "rax";
@@ -677,6 +816,9 @@ static void compile_func(Node* func){
     VarTab local_vartab = getVarTable(cur_func_name);
     size_t local_vars_stack_offset = 0;
     
+    //check if returns a struct -> additional param on rdi
+    char* return_type = func->firstChild->firstChild->label.value.id;
+
 
     Node* cur_param = func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
     //as parameters are already on stack, we don't need to allocate space for them
@@ -695,6 +837,11 @@ static void compile_func(Node* func){
         for (int i = 0; i < local_vars_stack_offset; i++)
             fprintf(asmb, "push 0\n");
     }
+    if (strcmp(return_type, "int") != 0 && strcmp(return_type, "char") != 0){
+        fprintf(asmb, "push rdi\n");
+    }
+
+    printf("COMPILE LOGS: %s - compiling instructions\n", cur_func_name);
 
     Node* curInstr = local_vars -> nextSibling -> firstChild;
     while (curInstr != NULL)
@@ -702,6 +849,7 @@ static void compile_func(Node* func){
         compile_instr(curInstr);
         curInstr = curInstr ->nextSibling;
     }
+
     if (local_vars_stack_offset > 0){
         for (int i = 0; i < local_vars_stack_offset; i++)
             fprintf(asmb, "pop r8\n");
