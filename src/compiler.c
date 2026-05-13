@@ -341,12 +341,15 @@ static void compile_function_call(Node* callNode, char* result_register){
         return;
     }
     // First, count arguments and their size
-        
+    
+    printf("COMPILE LOG: found callee function %s\n",
+        found_func->firstChild->firstChild->nextSibling->label.value.id);
+
     Node* tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
         
     while (tmp_arg) {
         if (tmp_arg->label.type == KEYWORD){
-            //printf("COMIPLER LOG: funciton call with no arguments\n");
+            printf("COMIPLER LOG: funciton call with no arguments\n");
             break;
         } //VOID
         char* type_arg = tmp_arg->label.value.id;
@@ -374,9 +377,14 @@ static void compile_function_call(Node* callNode, char* result_register){
     tmp_arg = found_func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
     
     //todo: hidden pointer if function returns struct
-    char* returning_type = found_func->firstChild->firstChild->label.value.id;
+    char* returning_type = found_func->firstChild->firstChild->label.type == TP ?
+        found_func->firstChild->firstChild->label.value.id :
+        "void";
+
     size_t return_size_aligned = 0;
-    if (strcmp(returning_type, "int") == 0 | strcmp(returning_type, "char") == 0){
+    if (strcmp(returning_type, "int") == 0
+        | strcmp(returning_type, "char") == 0
+        | strcmp(returning_type, "void") == 0){
         //pass
     }else{
         //allocate memory for return struct
@@ -754,6 +762,7 @@ static void compile_instr(Node* instr){
     // Function call: single child
     if (instr->firstChild && instr->firstChild->nextSibling == NULL) {
         compile_function_call(instr->firstChild, NULL);
+
         return;
     }
     // Variable/field assignment: two children
@@ -817,7 +826,9 @@ static void compile_func(Node* func){
     size_t local_vars_stack_offset = 0;
     
     //check if returns a struct -> additional param on rdi
-    char* return_type = func->firstChild->firstChild->label.value.id;
+    char* return_type = func->firstChild->firstChild->label.type == TP ?
+        func->firstChild->firstChild->label.value.id :
+        "void";
 
 
     Node* cur_param = func->firstChild->firstChild->nextSibling->nextSibling->firstChild;
@@ -837,7 +848,11 @@ static void compile_func(Node* func){
         for (int i = 0; i < local_vars_stack_offset; i++)
             fprintf(asmb, "push 0\n");
     }
-    if (strcmp(return_type, "int") != 0 && strcmp(return_type, "char") != 0){
+    if (strcmp(return_type, "int") == 0 |
+        strcmp(return_type, "char") == 0 |
+        strcmp(return_type, "void") == 0){
+        
+    }else{
         fprintf(asmb, "push rdi\n");
     }
 
